@@ -4,12 +4,22 @@ import "fmt"
 
 func main() {
 	// it's to separate the different exercises (mostly to see the syntax and Go specific rules)
+	//lesson1()
+	lesson2()
+}
+
+func lesson1() {
 	printSyntaxes()
 	addAndPrint()
 	basicForLoop()
 	basicForLoopSwitch()
 	fizzBuzz()
 	whileStyleLoop()
+}
+
+func lesson2() {
+	sliceOfFood()
+	agesMap()
 }
 
 func printSyntaxes() {
