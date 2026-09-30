@@ -1,0 +1,8 @@
+# Go
+*.exe
+
+# IDEs and editors
+/.idea
+
+# claude
+.claude/
