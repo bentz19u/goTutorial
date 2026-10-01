@@ -1,11 +1,15 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 func main() {
 	// it's to separate the different exercises (mostly to see the syntax and Go specific rules)
 	//lesson1()
-	lesson2()
+	//lesson2()
+	lesson3()
 }
 
 func lesson1() {
@@ -13,13 +17,18 @@ func lesson1() {
 	addAndPrint()
 	basicForLoop()
 	basicForLoopSwitch()
-	fizzBuzz()
+	fizzBuzzPrint()
 	whileStyleLoop()
 }
 
 func lesson2() {
 	sliceOfFood()
 	agesMap()
+}
+
+func lesson3() {
+	result := fizzBuzz(3)
+	fmt.Println(result)
 }
 
 func printSyntaxes() {
@@ -64,7 +73,7 @@ func basicForLoopSwitch() {
 	}
 }
 
-func fizzBuzz() {
+func fizzBuzzPrint() {
 	for i := 1; i <= 20; i++ {
 		if i%3 == 0 && i%5 == 0 {
 			fmt.Println("FizzBuzz")
@@ -76,6 +85,17 @@ func fizzBuzz() {
 			fmt.Println(i)
 		}
 	}
+}
+
+func fizzBuzz(i int) string {
+	if i%3 == 0 && i%5 == 0 {
+		return "FizzBuzz"
+	} else if i%3 == 0 {
+		return "Fizz"
+	} else if i%5 == 0 {
+		return "Buzz"
+	}
+	return strconv.Itoa(i)
 }
 
 func whileStyleLoop() {
