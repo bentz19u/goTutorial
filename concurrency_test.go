@@ -39,3 +39,12 @@ func TestSquareAll(t *testing.T) {
 		})
 	}
 }
+
+func TestCounter(t *testing.T) {
+	got := counter()
+	want := 10000
+
+	if got != want {
+		t.Errorf("counter don't match, got %d, want %d", got, want)
+	}
+}
