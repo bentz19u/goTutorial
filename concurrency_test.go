@@ -17,6 +17,25 @@ func TestDoWork(t *testing.T) {
 
 	want := []string{"start", "end", "cleanup B", "cleanup A"}
 	if !slices.Equal(got, want) {
-		t.Errorf("log slices not equal, got %q, expected %q", got, want)
+		t.Errorf("log slices not equal, got %v, expected %v", got, want)
+	}
+}
+
+func TestSquareAll(t *testing.T) {
+	tests := map[string]struct {
+		input, want []int
+	}{
+		"Three numbers": {[]int{2, 6, 15}, []int{4, 36, 225}},
+		"Empty":         {[]int{}, []int{}},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := squareAll(test.input)
+
+			if !slices.Equal(got, test.want) {
+				t.Errorf("square numbers dont match, got %v, want %v", got, test.want)
+			}
+		})
 	}
 }
