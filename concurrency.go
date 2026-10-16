@@ -116,3 +116,28 @@ func channelCounter() int {
 
 	return total
 }
+
+// in this one, we use a buffered channel, all Done() are fired on send (if the buffer have room), not when comsumers so the wg.Wait() worked inline
+// when unbuffered, all Done() are fired when the messages are consumed
+func bufferedChannelCounter() int {
+	var wg sync.WaitGroup
+	ch := make(chan int, 100)
+
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fetchCount(ch)
+		}()
+	}
+
+	wg.Wait()
+	close(ch)
+
+	total := 0
+	for count := range ch {
+		total += count
+	}
+
+	return total
+}

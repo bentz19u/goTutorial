@@ -57,3 +57,12 @@ func TestChannelCounter(t *testing.T) {
 		t.Errorf("counter don't match, got %d, want %d", got, want)
 	}
 }
+
+func TestBufferedChannelCounter(t *testing.T) {
+	got := bufferedChannelCounter()
+	want := 10000
+
+	if got != want {
+		t.Errorf("counter don't match, got %d, want %d", got, want)
+	}
+}
