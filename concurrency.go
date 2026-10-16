@@ -33,7 +33,7 @@ func squareAll(nums []int) []int {
 // second concurrency test, kept for the glorious history of learning concurrency in Go Lang
 func racyCounter() int {
 	var wg sync.WaitGroup
-	
+
 	racyCount := 0
 	// lunching 100 goroutines
 	for range 100 {
@@ -57,7 +57,7 @@ func racyCounter() int {
 func counter() int {
 	var wg sync.WaitGroup
 	var lock sync.Mutex
-	
+
 	count := 0
 	// lunching 100 goroutines
 	for range 100 {
@@ -77,4 +77,42 @@ func counter() int {
 	wg.Wait()
 
 	return count
+}
+
+func fetchCount(ch chan<- int) {
+	count := 0
+	for range 100 {
+		count++
+	}
+	ch <- count
+}
+
+// third concurrency test with chan
+func channelCounter() int {
+	var wg sync.WaitGroup
+
+	ch := make(chan int)
+
+	// we generate 100 goroutine that will send their values to the channel
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fetchCount(ch)
+		}()
+	}
+
+	// another goroutine that will close the channel once they are all done (doesnt stop the process)
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	// we reach here while the goroutines are doing their job
+	total := 0
+	for count := range ch {
+		total += count
+	}
+
+	return total
 }

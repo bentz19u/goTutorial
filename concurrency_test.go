@@ -48,3 +48,12 @@ func TestCounter(t *testing.T) {
 		t.Errorf("counter don't match, got %d, want %d", got, want)
 	}
 }
+
+func TestChannelCounter(t *testing.T) {
+	got := channelCounter()
+	want := 10000
+
+	if got != want {
+		t.Errorf("counter don't match, got %d, want %d", got, want)
+	}
+}
