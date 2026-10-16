@@ -157,3 +157,17 @@ func receiveWithTimeout(ch <-chan int, timeout time.Duration) (int, error) {
 		return 0, ErrTimeout
 	}
 }
+
+func pollCounter(interval time.Duration, done <-chan struct{}) int {
+	count := 0
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			count++
+		case <-done:
+			return count
+		}
+	}
+}

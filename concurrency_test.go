@@ -77,6 +77,7 @@ func TestReceiveWithTimeout(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
+			// it's buffered so in case of no receiver (timeout case), it doesnt wait
 			ch := make(chan int, 1)
 
 			go func() {
@@ -92,6 +93,30 @@ func TestReceiveWithTimeout(t *testing.T) {
 
 			if test.want != got {
 				t.Errorf("failed value: got %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+// some tick can be missing, if the ticker trigger while still running, it's just ditched
+// so we test against wantMin and wantMax to include lost ticks
+func TestPollCounter(t *testing.T) {
+	tests := map[string]struct {
+		interval, duration, wantMin, wantMax int
+	}{"Return 100": {1, 100, 90, 100}, "Return 50": {2, 100, 45, 50}}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			done := make(chan struct{})
+			go func() {
+				time.Sleep(time.Duration(test.duration) * time.Millisecond)
+				close(done)
+			}()
+
+			got := pollCounter(time.Duration(test.interval)*time.Millisecond, done)
+
+			if test.wantMin > got || got > test.wantMax {
+				t.Errorf("failed value: got %d, wantMin %d, wantMax %d", got, test.wantMin, test.wantMax)
 			}
 		})
 	}
