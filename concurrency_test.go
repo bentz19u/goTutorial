@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestDoWork(t *testing.T) {
@@ -64,5 +66,33 @@ func TestBufferedChannelCounter(t *testing.T) {
 
 	if got != want {
 		t.Errorf("counter don't match, got %d, want %d", got, want)
+	}
+}
+
+func TestReceiveWithTimeout(t *testing.T) {
+	tests := map[string]struct {
+		value, want, wait, timeout int
+		wantErr                    error
+	}{"Return value": {10, 10, 1, 20, nil}, "Timeout": {10, 0, 20, 1, ErrTimeout}}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ch := make(chan int, 1)
+
+			go func() {
+				time.Sleep(time.Duration(test.wait) * time.Millisecond)
+				ch <- test.value
+			}()
+
+			got, err := receiveWithTimeout(ch, time.Duration(test.timeout)*time.Millisecond)
+
+			if !errors.Is(err, test.wantErr) {
+				t.Errorf("failed error: got %v, want %v", err, test.wantErr)
+			}
+
+			if test.want != got {
+				t.Errorf("failed value: got %d, want %d", got, test.want)
+			}
+		})
 	}
 }

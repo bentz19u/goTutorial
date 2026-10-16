@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"sync"
+	"time"
 )
 
 // checking how defer works
@@ -140,4 +142,18 @@ func bufferedChannelCounter() int {
 	}
 
 	return total
+}
+
+// error sentinels are supposed to be exported (capital E)
+var ErrTimeout = errors.New("timeout")
+
+func receiveWithTimeout(ch <-chan int, timeout time.Duration) (int, error) {
+	select {
+	// channel win the race
+	case v := <-ch:
+		return v, nil
+	// timeout win the race
+	case <-time.After(timeout):
+		return 0, ErrTimeout
+	}
 }
