@@ -186,3 +186,28 @@ func pollCounterCtx(ctx context.Context, interval time.Duration) (int, error) {
 		}
 	}
 }
+
+// practicing graceful shutdown with context
+func runPollers(ctx context.Context, n int, interval time.Duration) int {
+	var wg sync.WaitGroup
+	ch := make(chan int, n)
+
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			count, _ := pollCounterCtx(ctx, interval)
+			ch <- count
+		}()
+	}
+
+	wg.Wait()
+	close(ch)
+
+	total := 0
+	for count := range ch {
+		total += count
+	}
+	return total
+}

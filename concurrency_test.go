@@ -153,3 +153,31 @@ func TestPollCounterCtx(t *testing.T) {
 		})
 	}
 }
+
+func TestRunPollers(t *testing.T) {
+	tests := map[string]struct {
+		interval, duration, timeout, workers, perWorkerWantMin, perWorkerWantMax int
+	}{"Manual Cancel": {1, 100, 200, 5, 90, 101},
+		"Timeout": {1, 100, 50, 5, 45, 51}}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(test.timeout)*time.Millisecond)
+
+			defer cancel()
+
+			go func() {
+				time.Sleep(time.Duration(test.duration) * time.Millisecond)
+				cancel()
+			}()
+
+			got := runPollers(ctx, test.workers, time.Duration(test.interval)*time.Millisecond)
+
+			wantMin := test.perWorkerWantMin * test.workers
+			wantMax := test.perWorkerWantMax * test.workers
+			if wantMin > got || got > wantMax {
+				t.Errorf("failed value: got %d, wantMin %d, wantMax %d", got, wantMin, wantMax)
+			}
+		})
+	}
+}
