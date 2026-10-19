@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -103,7 +104,7 @@ func TestReceiveWithTimeout(t *testing.T) {
 func TestPollCounter(t *testing.T) {
 	tests := map[string]struct {
 		interval, duration, wantMin, wantMax int
-	}{"Return 100": {1, 100, 90, 100}, "Return 50": {2, 100, 45, 50}}
+	}{"Return 100": {1, 100, 90, 101}, "Return 50": {2, 100, 45, 51}}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -114,6 +115,37 @@ func TestPollCounter(t *testing.T) {
 			}()
 
 			got := pollCounter(time.Duration(test.interval)*time.Millisecond, done)
+
+			if test.wantMin > got || got > test.wantMax {
+				t.Errorf("failed value: got %d, wantMin %d, wantMax %d", got, test.wantMin, test.wantMax)
+			}
+		})
+	}
+}
+
+func TestPollCounterCtx(t *testing.T) {
+	tests := map[string]struct {
+		interval, duration, timeout, wantMin, wantMax int
+		wantErr                                       error
+	}{"Manual Cancel": {1, 100, 200, 90, 101, context.Canceled},
+		"Timeout": {1, 100, 50, 45, 51, context.DeadlineExceeded}}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(test.timeout)*time.Millisecond)
+
+			defer cancel()
+
+			go func() {
+				time.Sleep(time.Duration(test.duration) * time.Millisecond)
+				cancel()
+			}()
+
+			got, err := pollCounterCtx(ctx, time.Duration(test.interval)*time.Millisecond)
+
+			if !errors.Is(err, test.wantErr) {
+				t.Errorf("failed error: got %v, want %v", err, test.wantErr)
+			}
 
 			if test.wantMin > got || got > test.wantMax {
 				t.Errorf("failed value: got %d, wantMin %d, wantMax %d", got, test.wantMin, test.wantMax)

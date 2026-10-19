@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -168,6 +169,20 @@ func pollCounter(interval time.Duration, done <-chan struct{}) int {
 			count++
 		case <-done:
 			return count
+		}
+	}
+}
+
+func pollCounterCtx(ctx context.Context, interval time.Duration) (int, error) {
+	count := 0
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			count++
+		case <-ctx.Done():
+			return count, ctx.Err()
 		}
 	}
 }
