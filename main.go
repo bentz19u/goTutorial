@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"strconv"
+	"time"
 )
 
 func main() {
 	// it's to separate the different exercises (mostly to see the syntax and Go specific rules)
 	//lesson1()
 	//lesson2()
-	lesson3()
+	//lesson3()
+	checkingInterruption()
 }
 
 func lesson1() {
@@ -106,4 +111,17 @@ func whileStyleLoop() {
 		loopCount++
 	}
 	fmt.Println("whileStyleLoop loop count:", loopCount)
+}
+
+// will ctrl c send a signal to interrupt the process
+// instead of termating it, it becomes a notification that will trigger a cancel() of the context
+// the total calculated so far by the goroutines will be returned by runPollers and printed
+func checkingInterruption() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+
+	defer stop()
+
+	total := runPollers(ctx, 5, 100*time.Millisecond)
+
+	fmt.Println(total)
 }
