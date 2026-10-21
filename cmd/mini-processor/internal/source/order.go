@@ -5,20 +5,39 @@ import (
 	"maps"
 )
 
+var ErrAlreadyExists = errors.New("order already exist")
 var ErrOrderNotExists = errors.New("order does not exist")
 
-type order struct {
+type Order struct {
 	ID    int
 	name  string
 	price float32
 }
 
 type fakeSource struct {
-	orders map[int]order
+	orders map[int]Order
 }
 
-func (f *fakeSource) snapshot() map[int]order {
+func (f *fakeSource) snapshot() map[int]Order {
 	return maps.Clone(f.orders)
+}
+
+func (f *fakeSource) add(o Order) error {
+	_, ok := f.orders[o.ID]
+	if ok {
+		return ErrAlreadyExists
+	}
+	f.orders[o.ID] = o
+	return nil
+}
+
+func (f *fakeSource) remove(orderID int) error {
+	_, ok := f.orders[orderID]
+	if !ok {
+		return ErrOrderNotExists
+	}
+	delete(f.orders, orderID)
+	return nil
 }
 
 func (f *fakeSource) updatePrice(orderID int, price float32) error {

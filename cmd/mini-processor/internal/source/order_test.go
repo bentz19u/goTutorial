@@ -2,18 +2,12 @@ package source
 
 import (
 	"errors"
-	"maps"
 	"testing"
 )
 
-func (s fakeSource) clone() fakeSource {
-	s.orders = maps.Clone(s.orders)
-	return s
-}
-
 func TestFakeSource(t *testing.T) {
 	originSource := fakeSource{
-		orders: map[int]order{
+		orders: map[int]Order{
 			1: {1, "Pizza", 9.99},
 			2: {2, "Burger", 5.45},
 			3: {3, "Salad", 7.22},
@@ -39,13 +33,13 @@ func TestFakeSource(t *testing.T) {
 			}
 
 			if err == nil {
-				// checking snap again
+				// checking second snap have the right price
 				snap2 := source.snapshot()
 				if snap2[test.ID].price != test.price {
 					t.Errorf("second snap price don't match, got %f, want %f", snap2[test.ID].price, test.price)
 				}
 
-				// snap1 should have original value
+				// snap1 should still have original value
 				if snap1[test.ID].price != 9.99 {
 					t.Errorf("first snap price doesnt match source, got %f, want %f", snap1[test.ID].price, 9.99)
 				}
