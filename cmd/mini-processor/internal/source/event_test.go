@@ -47,7 +47,7 @@ func TestDiff(t *testing.T) {
 			snap2 := source.snapshot()
 			events := diff(snap1, snap2)
 			if len(events) != 1 {
-				t.Fatalf("length of diff doesnt match, got %d, want %d", len(events), 1)
+				t.Fatalf("length of diff doesn't match, got %d, want %d", len(events), 1)
 			}
 
 			// only one event in the list, we can get the first item here

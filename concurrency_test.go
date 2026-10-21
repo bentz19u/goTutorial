@@ -37,7 +37,7 @@ func TestSquareAll(t *testing.T) {
 			got := squareAll(test.input)
 
 			if !slices.Equal(got, test.want) {
-				t.Errorf("square numbers dont match, got %v, want %v", got, test.want)
+				t.Errorf("square numbers don't match, got %v, want %v", got, test.want)
 			}
 		})
 	}
@@ -48,7 +48,7 @@ func TestCounter(t *testing.T) {
 	want := 10000
 
 	if got != want {
-		t.Errorf("counter don't match, got %d, want %d", got, want)
+		t.Errorf("counter doesn't match, got %d, want %d", got, want)
 	}
 }
 
@@ -57,7 +57,7 @@ func TestChannelCounter(t *testing.T) {
 	want := 10000
 
 	if got != want {
-		t.Errorf("counter don't match, got %d, want %d", got, want)
+		t.Errorf("counter doesn't match, got %d, want %d", got, want)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestBufferedChannelCounter(t *testing.T) {
 	want := 10000
 
 	if got != want {
-		t.Errorf("counter don't match, got %d, want %d", got, want)
+		t.Errorf("counter doesn't match, got %d, want %d", got, want)
 	}
 }
 
@@ -78,7 +78,7 @@ func TestReceiveWithTimeout(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			// it's buffered so in case of no receiver (timeout case), it doesnt wait
+			// it's buffered so in case of no receiver (timeout case), it doesn't wait
 			ch := make(chan int, 1)
 
 			go func() {

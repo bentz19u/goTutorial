@@ -114,7 +114,7 @@ func whileStyleLoop() {
 }
 
 // will ctrl c send a signal to interrupt the process
-// instead of termating it, it becomes a notification that will trigger a cancel() of the context
+// instead of terminating it, it becomes a notification that will trigger a cancel() of the context
 // the total calculated so far by the goroutines will be returned by runPollers and printed
 func checkingInterruption() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)

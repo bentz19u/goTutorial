@@ -5,7 +5,7 @@ import (
 	"maps"
 )
 
-var ErrAlreadyExists = errors.New("order already exist")
+var ErrAlreadyExists = errors.New("order already exists")
 var ErrOrderNotExists = errors.New("order does not exist")
 
 type Order struct {

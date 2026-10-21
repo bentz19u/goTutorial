@@ -38,7 +38,7 @@ func racyCounter() int {
 	var wg sync.WaitGroup
 
 	racyCount := 0
-	// lunching 100 goroutines
+	// launching 100 goroutines
 	for range 100 {
 		wg.Add(1)
 		go func() {
@@ -62,7 +62,7 @@ func counter() int {
 	var lock sync.Mutex
 
 	count := 0
-	// lunching 100 goroutines
+	// launching 100 goroutines
 	for range 100 {
 		wg.Add(1)
 		go func() {
@@ -105,7 +105,7 @@ func channelCounter() int {
 		}()
 	}
 
-	// another goroutine that will close the channel once they are all done (doesnt stop the process)
+	// another goroutine that will close the channel once they are all done (doesn't stop the process)
 	go func() {
 		wg.Wait()
 		close(ch)
@@ -120,7 +120,7 @@ func channelCounter() int {
 	return total
 }
 
-// in this one, we use a buffered channel, all Done() are fired on send (if the buffer have room), not when comsumers so the wg.Wait() worked inline
+// in this one, we use a buffered channel, all Done() are fired on send (if the buffer has room), not when consumed so the wg.Wait() worked inline
 // when unbuffered, all Done() are fired when the messages are consumed
 func bufferedChannelCounter() int {
 	var wg sync.WaitGroup
