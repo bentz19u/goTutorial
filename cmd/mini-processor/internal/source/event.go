@@ -36,16 +36,11 @@ func diff(prev, curr map[int]Order) []Event {
 		}
 	}
 
-	sortEvents := func(events []Event) {
-		slices.SortFunc(events, func(a, b Event) int {
-			return cmp.Or(
-				cmp.Compare(a.orderID, b.orderID),
-				cmp.Compare(a.status, b.status),
-			)
-		})
-	}
-
-	sortEvents(events)
+	slices.SortFunc(events, func(a, b Event) int {
+		return cmp.Or(
+			cmp.Compare(a.orderID, b.orderID),
+		)
+	})
 
 	return events
 }
