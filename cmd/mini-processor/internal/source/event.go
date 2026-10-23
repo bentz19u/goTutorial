@@ -1,5 +1,10 @@
 package source
 
+import (
+	"cmp"
+	"slices"
+)
+
 type EventStatus int
 
 const (
@@ -30,6 +35,17 @@ func diff(prev, curr map[int]Order) []Event {
 			events = append(events, Event{orderID: cID, status: addedOrder})
 		}
 	}
+
+	sortEvents := func(events []Event) {
+		slices.SortFunc(events, func(a, b Event) int {
+			return cmp.Or(
+				cmp.Compare(a.orderID, b.orderID),
+				cmp.Compare(a.status, b.status),
+			)
+		})
+	}
+
+	sortEvents(events)
 
 	return events
 }
