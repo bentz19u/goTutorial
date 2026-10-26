@@ -35,13 +35,13 @@ func TestFakeSource(t *testing.T) {
 			if err == nil {
 				// checking second snap has the right price
 				snap2 := source.snapshot()
-				if snap2[test.ID].price != test.price {
-					t.Errorf("second snap price doesn't match, got %f, want %f", snap2[test.ID].price, test.price)
+				if snap2[test.ID].Price != test.price {
+					t.Errorf("second snap price doesn't match, got %f, want %f", snap2[test.ID].Price, test.price)
 				}
 
 				// snap1 should still have original value
-				if snap1[test.ID].price != 9.99 {
-					t.Errorf("first snap price doesn't match source, got %f, want %f", snap1[test.ID].price, 9.99)
+				if snap1[test.ID].Price != 9.99 {
+					t.Errorf("first snap price doesn't match source, got %f, want %f", snap1[test.ID].Price, 9.99)
 				}
 			}
 		})

@@ -10,8 +10,8 @@ var ErrOrderNotExists = errors.New("order does not exist")
 
 type Order struct {
 	ID    int
-	name  string
-	price float32
+	Name  string
+	Price float32
 }
 
 type fakeSource struct {
@@ -46,7 +46,7 @@ func (f *fakeSource) updatePrice(orderID int, price float32) error {
 		return ErrOrderNotExists
 	}
 
-	o.price = price
+	o.Price = price
 	f.orders[orderID] = o
 	return nil
 }

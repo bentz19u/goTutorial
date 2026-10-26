@@ -21,37 +21,37 @@ func TestDiff(t *testing.T) {
 		"add": {
 			changes: []func(s *fakeSource) error{
 				func(s *fakeSource) error {
-					order := Order{ID: 4, name: "Icecream", price: 3.99}
+					order := Order{ID: 4, Name: "Icecream", Price: 3.99}
 					return s.add(order)
 				},
 			},
-			want: []Event{{orderID: 4, status: addedOrder}},
+			want: []Event{{OrderID: 4, Status: AddedOrder}},
 		},
 		"remove": {
 			changes: []func(s *fakeSource) error{
 				func(s *fakeSource) error { return s.remove(2) },
 			},
-			want: []Event{{orderID: 2, status: removedOrder}},
+			want: []Event{{OrderID: 2, Status: RemovedOrder}},
 		},
 		"price change": {
 			changes: []func(s *fakeSource) error{
 				func(s *fakeSource) error { return s.updatePrice(1, 10.99) },
 			},
-			want: []Event{{orderID: 1, status: priceChanged}},
+			want: []Event{{OrderID: 1, Status: PriceChanged}},
 		},
 		"multi event": {
 			changes: []func(s *fakeSource) error{
 				func(s *fakeSource) error { return s.updatePrice(1, 10.99) },
 				func(s *fakeSource) error { return s.remove(2) },
 				func(s *fakeSource) error {
-					order := Order{ID: 4, name: "Icecream", price: 3.99}
+					order := Order{ID: 4, Name: "Icecream", Price: 3.99}
 					return s.add(order)
 				},
 			},
 			want: []Event{
-				{orderID: 1, status: priceChanged},
-				{orderID: 2, status: removedOrder},
-				{orderID: 4, status: addedOrder},
+				{OrderID: 1, Status: PriceChanged},
+				{OrderID: 2, Status: RemovedOrder},
+				{OrderID: 4, Status: AddedOrder},
 			},
 		},
 		"no change": {
@@ -74,7 +74,7 @@ func TestDiff(t *testing.T) {
 			}
 
 			snap2 := source.snapshot()
-			events := diff(snap1, snap2)
+			events := Diff(snap1, snap2)
 			wantLen := len(test.want)
 			if len(events) != wantLen {
 				t.Fatalf("length of diff doesn't match, got %d, want %d", len(events), wantLen)

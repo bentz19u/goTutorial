@@ -8,38 +8,36 @@ import (
 type EventStatus int
 
 const (
-	addedOrder   EventStatus = iota // 0
-	removedOrder                    // 1
-	priceChanged                    // 2
+	AddedOrder   EventStatus = iota // 0
+	RemovedOrder                    // 1
+	PriceChanged                    // 2
 )
 
 type Event struct {
-	orderID int
-	status  EventStatus
+	OrderID int
+	Status  EventStatus
 }
 
-func diff(prev, curr map[int]Order) []Event {
+func Diff(prev, curr map[int]Order) []Event {
 	var events []Event
 	for pID, p := range prev {
 		c, ok := curr[pID]
 		if !ok {
-			events = append(events, Event{orderID: pID, status: removedOrder})
-		} else if p.price != c.price {
-			events = append(events, Event{orderID: pID, status: priceChanged})
+			events = append(events, Event{OrderID: pID, Status: RemovedOrder})
+		} else if p.Price != c.Price {
+			events = append(events, Event{OrderID: pID, Status: PriceChanged})
 		}
 	}
 
 	for cID := range curr {
 		_, ok := prev[cID]
 		if !ok {
-			events = append(events, Event{orderID: cID, status: addedOrder})
+			events = append(events, Event{OrderID: cID, Status: AddedOrder})
 		}
 	}
 
 	slices.SortFunc(events, func(a, b Event) int {
-		return cmp.Or(
-			cmp.Compare(a.orderID, b.orderID),
-		)
+		return cmp.Compare(a.OrderID, b.OrderID)
 	})
 
 	return events
