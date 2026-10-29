@@ -45,16 +45,39 @@ func main() {
 		poller.Run(ctx, originalSource, time.Duration(1)*time.Millisecond, out)
 	}()
 
+	// main act a supervisor, it will generate goroutines for the consumers AND the dispatcher
 	var wg sync.WaitGroup
+	var consumerChans []chan source.Event
 	for id := range 2 {
+		consumerCh := make(chan source.Event)
+		consumerChans = append(consumerChans, consumerCh)
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
-			consumer(id, out)
+			consumer(id, consumerCh)
 		}()
 	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		dispatcher(out, consumerChans)
+	}()
+
 	wg.Wait()
+}
+
+func dispatcher(in <-chan source.Event, outs []chan source.Event) {
+	for event := range in {
+		for _, out := range outs {
+			out <- event
+		}
+	}
+
+	for _, out := range outs {
+		close(out)
+	}
 }
 
 func consumer(id int, in <-chan source.Event) {
