@@ -4,7 +4,6 @@ import (
 	"maps"
 )
 
-func (s fakeSource) clone() fakeSource {
-	s.orders = maps.Clone(s.orders)
-	return s
+func (s *FakeSource) clone() *FakeSource {
+	return &FakeSource{orders: maps.Clone(s.orders)}
 }

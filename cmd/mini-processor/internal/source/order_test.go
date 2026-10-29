@@ -6,7 +6,7 @@ import (
 )
 
 func TestFakeSource(t *testing.T) {
-	originSource := fakeSource{
+	originSource := FakeSource{
 		orders: map[int]Order{
 			1: {1, "Pizza", 9.99},
 			2: {2, "Burger", 5.45},
@@ -24,17 +24,17 @@ func TestFakeSource(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			source := originSource.clone()
 
-			snap1 := source.snapshot()
+			snap1 := source.Snapshot()
 
 			// changing price, err means the order doesn't exist
-			err := source.updatePrice(test.ID, test.price)
+			err := source.UpdatePrice(test.ID, test.price)
 			if !errors.Is(err, test.wantErr) {
 				t.Errorf("error doesn't match, got %v, want %v", err, test.wantErr)
 			}
 
 			if err == nil {
 				// checking second snap has the right price
-				snap2 := source.snapshot()
+				snap2 := source.Snapshot()
 				if snap2[test.ID].Price != test.price {
 					t.Errorf("second snap price doesn't match, got %f, want %f", snap2[test.ID].Price, test.price)
 				}
