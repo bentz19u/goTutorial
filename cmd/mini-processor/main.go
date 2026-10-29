@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	"github.com/bentz19u/gotutorial/cmd/mini-processor/internal/poller"
@@ -44,7 +45,20 @@ func main() {
 		poller.Run(ctx, originalSource, time.Duration(1)*time.Millisecond, out)
 	}()
 
-	for event := range out {
-		fmt.Printf("event received, got %v", event)
+	var wg sync.WaitGroup
+	for id := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			consumer(id, out)
+		}()
+	}
+	wg.Wait()
+}
+
+func consumer(id int, in <-chan source.Event) {
+	for event := range in {
+		fmt.Printf("event received, consumer id %d, got %v\n", id, event)
 	}
 }
