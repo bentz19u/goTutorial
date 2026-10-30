@@ -12,6 +12,11 @@ import (
 	"github.com/bentz19u/gotutorial/cmd/mini-processor/internal/source"
 )
 
+type step struct {
+	orderType source.EventStatus
+	order     source.Order
+}
+
 // the goal is to test the poller and also be able to interrupt it
 func main() {
 	originalSource := source.NewFakeSource()
@@ -23,23 +28,36 @@ func main() {
 	out := make(chan source.Event)
 
 	// so event can be generated
-	toAdd := []source.Order{
-		{ID: 3, Name: "Pizza1"},
-		{ID: 4, Name: "Pizza2"},
-		{ID: 5, Name: "Pizza3"},
-		{ID: 6, Name: "Pizza4"},
-		{ID: 7, Name: "Pizza5"},
-		{ID: 8, Name: "Pizza6"},
-		{ID: 9, Name: "Pizza7"},
-		{ID: 10, Name: "Pizza8"},
+	toExecute := []step{
+		{source.PriceChanged, source.Order{ID: 1, Price: 2.99}},
+		{source.AddedOrder, source.Order{ID: 3, Name: "Pizza1"}},
+		{source.AddedOrder, source.Order{ID: 4, Name: "Pizza2"}},
+		{source.PriceChanged, source.Order{ID: 4, Price: 3.99}},
+		{source.RemovedOrder, source.Order{ID: 4}},
+		{source.AddedOrder, source.Order{ID: 5, Name: "Pizza3"}},
+		{source.AddedOrder, source.Order{ID: 6, Name: "Pizza4"}},
+		{source.AddedOrder, source.Order{ID: 7, Name: "Pizza5"}},
+		{source.AddedOrder, source.Order{ID: 8, Name: "Pizza6"}},
+		{source.RemovedOrder, source.Order{ID: 6}},
+		{source.AddedOrder, source.Order{ID: 9, Name: "Pizza7"}},
+		{source.AddedOrder, source.Order{ID: 10, Name: "Pizza8"}},
+		{source.RemovedOrder, source.Order{ID: 3}},
 	}
 
-	go func(toAdd []source.Order) {
-		for _, o := range toAdd {
+	go func(toExecute []step) {
+		for _, o := range toExecute {
 			time.Sleep(300 * time.Millisecond)
-			originalSource.Add(o)
+
+			switch o.orderType {
+			case source.AddedOrder:
+				originalSource.Add(o.order)
+			case source.RemovedOrder:
+				originalSource.Remove(o.order.ID)
+			case source.PriceChanged:
+				originalSource.UpdatePrice(o.order.ID, o.order.Price)
+			}
 		}
-	}(toAdd)
+	}(toExecute)
 
 	go func() {
 		poller.Run(ctx, originalSource, time.Duration(1)*time.Millisecond, out)
@@ -55,7 +73,11 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			consumer(id, consumerCh)
+			if id == 0 {
+				consumerStat(consumerCh)
+			} else {
+				consumer(id, consumerCh)
+			}
 		}()
 	}
 
@@ -80,8 +102,27 @@ func dispatcher(in <-chan source.Event, outs []chan source.Event) {
 	}
 }
 
+// first iteration of consumer
 func consumer(id int, in <-chan source.Event) {
 	for event := range in {
 		fmt.Printf("event received, consumer id %d, got %v\n", id, event)
 	}
+}
+
+// second iteration, the consumer stat keep stat and print them when it closes
+func consumerStat(in <-chan source.Event) {
+	added, removed, updated := 0, 0, 0
+
+	for event := range in {
+		switch event.Status {
+		case source.AddedOrder:
+			added++
+		case source.RemovedOrder:
+			removed++
+		case source.PriceChanged:
+			updated++
+		}
+	}
+
+	fmt.Printf("consumerStat final result, added %d, removed %d, updated %d\n", added, removed, updated)
 }

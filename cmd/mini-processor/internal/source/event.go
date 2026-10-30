@@ -2,6 +2,7 @@ package source
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 )
 
@@ -16,6 +17,21 @@ const (
 type Event struct {
 	OrderID int
 	Status  EventStatus
+}
+
+func (e Event) String() string {
+	var status string
+
+	switch e.Status {
+	case AddedOrder:
+		status = "add"
+	case RemovedOrder:
+		status = "remove"
+	case PriceChanged:
+		status = "price update"
+	}
+
+	return fmt.Sprintf("Order %d: %v", e.OrderID, status)
 }
 
 func Diff(prev, curr map[int]Order) []Event {
