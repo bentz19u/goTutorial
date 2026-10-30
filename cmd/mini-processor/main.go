@@ -73,9 +73,12 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if id == 0 {
+			switch id {
+			case 0:
 				consumerStat(consumerCh)
-			} else {
+			case 1:
+				consumerMirror(id, consumerCh)
+			default:
 				consumer(id, consumerCh)
 			}
 		}()
@@ -125,4 +128,20 @@ func consumerStat(in <-chan source.Event) {
 	}
 
 	fmt.Printf("consumerStat final result, added %d, removed %d, updated %d\n", added, removed, updated)
+}
+
+// third iteration, it keeps its own order list based on the events
+func consumerMirror(id int, in <-chan source.Event) {
+	mirror := make(map[int]source.Order)
+	for event := range in {
+		if event.Status == source.AddedOrder || event.Status == source.PriceChanged {
+			mirror[event.OrderID] = event.Order
+		} else {
+			delete(mirror, event.OrderID)
+		}
+
+		fmt.Printf("event received, consumer id %d, got %v\n", id, event)
+	}
+
+	fmt.Printf("consumerMirror final result: %v", mirror)
 }

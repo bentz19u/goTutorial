@@ -16,6 +16,7 @@ const (
 
 type Event struct {
 	OrderID int
+	Order   Order
 	Status  EventStatus
 }
 
@@ -41,14 +42,14 @@ func Diff(prev, curr map[int]Order) []Event {
 		if !ok {
 			events = append(events, Event{OrderID: pID, Status: RemovedOrder})
 		} else if p.Price != c.Price {
-			events = append(events, Event{OrderID: pID, Status: PriceChanged})
+			events = append(events, Event{OrderID: pID, Order: c, Status: PriceChanged})
 		}
 	}
 
-	for cID := range curr {
+	for cID, c := range curr {
 		_, ok := prev[cID]
 		if !ok {
-			events = append(events, Event{OrderID: cID, Status: AddedOrder})
+			events = append(events, Event{OrderID: cID, Order: c, Status: AddedOrder})
 		}
 	}
 

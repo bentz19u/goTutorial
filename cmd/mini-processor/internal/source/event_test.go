@@ -25,7 +25,7 @@ func TestDiff(t *testing.T) {
 					return s.Add(order)
 				},
 			},
-			want: []Event{{OrderID: 4, Status: AddedOrder}},
+			want: []Event{{OrderID: 4, Order: Order{ID: 4, Name: "Icecream", Price: 3.99}, Status: AddedOrder}},
 		},
 		"remove": {
 			changes: []func(s *FakeSource) error{
@@ -37,7 +37,7 @@ func TestDiff(t *testing.T) {
 			changes: []func(s *FakeSource) error{
 				func(s *FakeSource) error { return s.UpdatePrice(1, 10.99) },
 			},
-			want: []Event{{OrderID: 1, Status: PriceChanged}},
+			want: []Event{{OrderID: 1, Order: Order{ID: 1, Name: "Pizza", Price: 10.99}, Status: PriceChanged}},
 		},
 		"multi event": {
 			changes: []func(s *FakeSource) error{
@@ -49,9 +49,9 @@ func TestDiff(t *testing.T) {
 				},
 			},
 			want: []Event{
-				{OrderID: 1, Status: PriceChanged},
+				{OrderID: 1, Order: Order{ID: 1, Name: "Pizza", Price: 10.99}, Status: PriceChanged},
 				{OrderID: 2, Status: RemovedOrder},
-				{OrderID: 4, Status: AddedOrder},
+				{OrderID: 4, Order: Order{ID: 4, Name: "Icecream", Price: 3.99}, Status: AddedOrder},
 			},
 		},
 		"no change": {
@@ -85,7 +85,7 @@ func TestDiff(t *testing.T) {
 			}
 
 			if !slices.Equal(events, test.want) {
-				t.Errorf("received events don't match, got %v, want %v", events, test.want)
+				t.Errorf("received events don't match, got %#v, want %#v", events, test.want)
 			}
 		})
 	}
