@@ -3,6 +3,7 @@ package source
 import (
 	"cmp"
 	"fmt"
+	"log/slog"
 	"slices"
 )
 
@@ -20,19 +21,25 @@ type Event struct {
 	Status  EventStatus
 }
 
-func (e Event) String() string {
-	var status string
-
-	switch e.Status {
+func (es EventStatus) String() string {
+	switch es {
 	case AddedOrder:
-		status = "add"
+		return "add"
 	case RemovedOrder:
-		status = "remove"
+		return "remove"
 	case PriceChanged:
-		status = "price update"
+		return "price update"
+	default:
+		return "unknown"
 	}
+}
 
-	return fmt.Sprintf("Order %d: %v", e.OrderID, status)
+func (e Event) String() string {
+	return fmt.Sprintf("Order %d: %v", e.OrderID, e.Status)
+}
+
+func (e Event) LogValue() slog.Value {
+	return slog.GroupValue(slog.Int("orderID", e.OrderID), slog.String("status", e.Status.String()), slog.Any("price", e.Order.Price))
 }
 
 func Diff(prev, curr map[int]Order) []Event {

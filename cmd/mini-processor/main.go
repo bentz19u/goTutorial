@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -17,8 +17,16 @@ type step struct {
 	order     source.Order
 }
 
+func initLogger() {
+	handler := slog.NewJSONHandler(os.Stderr, nil)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+}
+
 // the goal is to test the poller and also be able to interrupt it
 func main() {
+	initLogger()
+
 	originalSource := source.NewFakeSource()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -108,7 +116,7 @@ func dispatcher(in <-chan source.Event, outs []chan source.Event) {
 // first iteration of consumer
 func consumer(id int, in <-chan source.Event) {
 	for event := range in {
-		fmt.Printf("event received, consumer id %d, got %v\n", id, event)
+		slog.Info("event received", "consumerID", id, "event", event)
 	}
 }
 
@@ -127,7 +135,7 @@ func consumerStat(in <-chan source.Event) {
 		}
 	}
 
-	fmt.Printf("consumerStat final result, added %d, removed %d, updated %d\n", added, removed, updated)
+	slog.Info("consumerStat final result", "added", added, "removed", removed, "updated", updated)
 }
 
 // third iteration, it keeps its own order list based on the events
@@ -140,8 +148,8 @@ func consumerMirror(id int, in <-chan source.Event) {
 			delete(mirror, event.OrderID)
 		}
 
-		fmt.Printf("event received, consumer id %d, got %v\n", id, event)
+		slog.Info("event received", "consumerID", id, "event", event)
 	}
 
-	fmt.Printf("consumerMirror final result: %v\n", mirror)
+	slog.Info("consumerMirror final result", "mirror", mirror)
 }
