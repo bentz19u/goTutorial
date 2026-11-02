@@ -54,6 +54,8 @@ func TestRun(t *testing.T) {
 	}
 
 	want := []source.Event{
+		{OrderID: 1, Order: source.Order{ID: 1, Name: "Pizza", Price: 9.99}, Status: source.AddedOrder},
+		{OrderID: 2, Order: source.Order{ID: 2, Name: "Burger", Price: 5.45}, Status: source.AddedOrder},
 		{OrderID: 3, Order: source.Order{ID: 3, Name: "Salad", Price: 7.22}, Status: source.AddedOrder},
 		{OrderID: 2, Order: source.Order{ID: 2, Name: "Burger", Price: 6.45}, Status: source.PriceChanged},
 		{OrderID: 3, Status: source.RemovedOrder},

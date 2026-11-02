@@ -15,7 +15,7 @@ func Run(ctx context.Context, src Source, interval time.Duration, out chan<- sou
 	defer ticker.Stop()
 	defer close(out)
 
-	prev := src.Snapshot()
+	var prev map[int]source.Order
 
 	for {
 		select {

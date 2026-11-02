@@ -143,5 +143,5 @@ func consumerMirror(id int, in <-chan source.Event) {
 		fmt.Printf("event received, consumer id %d, got %v\n", id, event)
 	}
 
-	fmt.Printf("consumerMirror final result: %v", mirror)
+	fmt.Printf("consumerMirror final result: %v\n", mirror)
 }
