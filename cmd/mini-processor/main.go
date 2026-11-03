@@ -2,14 +2,18 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"os"
 	"os/signal"
+
 	"sync"
 	"time"
 
 	"github.com/bentz19u/gotutorial/cmd/mini-processor/internal/poller"
 	"github.com/bentz19u/gotutorial/cmd/mini-processor/internal/source"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type step struct {
@@ -23,9 +27,50 @@ func initLogger() {
 	slog.SetDefault(logger)
 }
 
+func initDatabase() *sql.DB {
+	db, err := sql.Open("mysql", "root:minimirror@tcp(127.0.0.1:3306)/minimirror")
+	if err != nil {
+		slog.Error("invalid data source configuration", "error", err)
+		return nil
+	}
+
+	errPing := db.Ping()
+	if errPing != nil {
+		slog.Error("ping error", "error", errPing)
+		return nil
+	}
+	slog.Info("ping to database successful")
+	return db
+}
+
+func initTable(db *sql.DB) error {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS orders (
+		id INT PRIMARY KEY,
+		name VARCHAR(50) NOT NULL,
+		price DECIMAL(10, 2) NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // the goal is to test the poller and also be able to interrupt it
 func main() {
 	initLogger()
+
+	db := initDatabase()
+	if db == nil {
+		slog.Error("connection to database failure")
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	err := initTable(db)
+	if err != nil {
+		slog.Error("initTable failed", "error", err)
+		os.Exit(1)
+	}
 
 	originalSource := source.NewFakeSource()
 
@@ -85,7 +130,7 @@ func main() {
 			case 0:
 				consumerStat(consumerCh)
 			case 1:
-				consumerMirror(id, consumerCh)
+				consumerMirror(id, db, consumerCh)
 			default:
 				consumer(id, consumerCh)
 			}
@@ -139,16 +184,43 @@ func consumerStat(in <-chan source.Event) {
 }
 
 // third iteration, it keeps its own order list based on the events
-func consumerMirror(id int, in <-chan source.Event) {
-	mirror := make(map[int]source.Order)
+func consumerMirror(id int, db *sql.DB, in <-chan source.Event) {
 	for event := range in {
 		if event.Status == source.AddedOrder || event.Status == source.PriceChanged {
-			mirror[event.OrderID] = event.Order
+			_, err := db.Exec("INSERT INTO orders VALUES (?,?,?) ON DUPLICATE KEY UPDATE name = ?, price = ?", event.OrderID, event.Order.Name, event.Order.Price, event.Order.Name, event.Order.Price)
+			if err != nil {
+				slog.Error("failed to upsert order", "event", event, "error", err)
+			}
 		} else {
-			delete(mirror, event.OrderID)
+			_, err := db.Exec("DELETE FROM orders WHERE ID = ?", event.OrderID)
+			if err != nil {
+				slog.Error("failed to delete order", "event", event, "error", err)
+			}
 		}
 
 		slog.Info("event received", "consumerID", id, "event", event)
+	}
+
+	rows, err := db.Query("SELECT * FROM orders")
+	if err != nil {
+		slog.Error("querying mirror failed", "error", err)
+		return
+	}
+	defer rows.Close()
+
+	mirror := make(map[int]source.Order)
+	for rows.Next() {
+		var o source.Order
+		if err := rows.Scan(&o.ID, &o.Name, &o.Price); err != nil {
+			slog.Error("failed to scan mirror row", "error", err)
+			return
+		}
+		mirror[o.ID] = o
+	}
+
+	if err := rows.Err(); err != nil {
+		slog.Error("error during mirror rows iteration", "error", err)
+		return
 	}
 
 	slog.Info("consumerMirror final result", "mirror", mirror)
