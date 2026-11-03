@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -27,20 +29,23 @@ func initLogger() {
 	slog.SetDefault(logger)
 }
 
-func initDatabase() *sql.DB {
-	db, err := sql.Open("mysql", "root:minimirror@tcp(127.0.0.1:3306)/minimirror")
+func initDatabase() (*sql.DB, error) {
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		return nil, errors.New("DB_PASSWORD not configured")
+	}
+
+	db, err := sql.Open("mysql", fmt.Sprintf("root:%s@tcp(127.0.0.1:3306)/minimirror", dbPassword))
 	if err != nil {
-		slog.Error("invalid data source configuration", "error", err)
-		return nil
+		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
 	errPing := db.Ping()
 	if errPing != nil {
-		slog.Error("ping error", "error", errPing)
-		return nil
+		return nil, fmt.Errorf("pinging database: %w", errPing)
 	}
 	slog.Info("ping to database successful")
-	return db
+	return db, nil
 }
 
 func initTable(db *sql.DB) error {
@@ -59,9 +64,9 @@ func initTable(db *sql.DB) error {
 func main() {
 	initLogger()
 
-	db := initDatabase()
-	if db == nil {
-		slog.Error("connection to database failure")
+	db, errDb := initDatabase()
+	if errDb != nil {
+		slog.Error("connection to database failure", "error", errDb)
 		os.Exit(1)
 	}
 	defer db.Close()
