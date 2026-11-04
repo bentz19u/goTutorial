@@ -29,7 +29,7 @@ func initLogger() {
 	slog.SetDefault(logger)
 }
 
-func initDatabase() (*sql.DB, error) {
+func initDatabase(ctx context.Context) (*sql.DB, error) {
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
 		return nil, errors.New("DB_PASSWORD not configured")
@@ -40,16 +40,23 @@ func initDatabase() (*sql.DB, error) {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
-	errPing := db.Ping()
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	errPing := db.PingContext(ctx)
 	if errPing != nil {
 		return nil, fmt.Errorf("pinging database: %w", errPing)
 	}
+
 	slog.Info("ping to database successful")
 	return db, nil
 }
 
-func initTable(db *sql.DB) error {
-	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS orders (
+func initTable(ctx context.Context, db *sql.DB) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS orders (
 		id INT PRIMARY KEY,
 		name VARCHAR(50) NOT NULL,
 		price DECIMAL(10, 2) NOT NULL
@@ -64,14 +71,16 @@ func initTable(db *sql.DB) error {
 func main() {
 	initLogger()
 
-	db, errDb := initDatabase()
+	ctx := context.Background()
+
+	db, errDb := initDatabase(ctx)
 	if errDb != nil {
 		slog.Error("connection to database failure", "error", errDb)
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	err := initTable(db)
+	err := initTable(ctx, db)
 	if err != nil {
 		slog.Error("initTable failed", "error", err)
 		os.Exit(1)
@@ -192,24 +201,47 @@ func consumerStat(in <-chan source.Event) {
 func consumerMirror(id int, db *sql.DB, in <-chan source.Event) {
 	for event := range in {
 		if event.Status == source.AddedOrder || event.Status == source.PriceChanged {
-			_, err := db.Exec("INSERT INTO orders VALUES (?,?,?) ON DUPLICATE KEY UPDATE name = ?, price = ?", event.OrderID, event.Order.Name, event.Order.Price, event.Order.Name, event.Order.Price)
-			if err != nil {
-				slog.Error("failed to upsert order", "event", event, "error", err)
-			}
+			upsertOrder(db, event)
 		} else {
-			_, err := db.Exec("DELETE FROM orders WHERE ID = ?", event.OrderID)
-			if err != nil {
-				slog.Error("failed to delete order", "event", event, "error", err)
-			}
+			deleteOrder(db, event)
 		}
 
 		slog.Info("event received", "consumerID", id, "event", event)
 	}
 
-	rows, err := db.Query("SELECT * FROM orders")
+	mirror := selectOrderAll(db)
+
+	slog.Info("consumerMirror final result", "mirror", mirror)
+}
+
+func upsertOrder(db *sql.DB, event source.Event) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx, "INSERT INTO orders VALUES (?,?,?) ON DUPLICATE KEY UPDATE name = ?, price = ?", event.OrderID, event.Order.Name, event.Order.Price, event.Order.Name, event.Order.Price)
+	if err != nil {
+		slog.Error("failed to upsert order", "event", event, "error", err)
+	}
+}
+
+func deleteOrder(db *sql.DB, event source.Event) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx, "DELETE FROM orders WHERE ID = ?", event.OrderID)
+	if err != nil {
+		slog.Error("failed to delete order", "event", event, "error", err)
+	}
+}
+
+func selectOrderAll(db *sql.DB) map[int]source.Order {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM orders")
 	if err != nil {
 		slog.Error("querying mirror failed", "error", err)
-		return
+		return nil
 	}
 	defer rows.Close()
 
@@ -218,15 +250,15 @@ func consumerMirror(id int, db *sql.DB, in <-chan source.Event) {
 		var o source.Order
 		if err := rows.Scan(&o.ID, &o.Name, &o.Price); err != nil {
 			slog.Error("failed to scan mirror row", "error", err)
-			return
+			return nil
 		}
 		mirror[o.ID] = o
 	}
 
 	if err := rows.Err(); err != nil {
 		slog.Error("error during mirror rows iteration", "error", err)
-		return
+		return nil
 	}
 
-	slog.Info("consumerMirror final result", "mirror", mirror)
+	return mirror
 }
