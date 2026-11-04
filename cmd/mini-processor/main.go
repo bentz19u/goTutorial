@@ -115,13 +115,18 @@ func main() {
 		for _, o := range toExecute {
 			time.Sleep(300 * time.Millisecond)
 
+			var err error
 			switch o.orderType {
 			case source.AddedOrder:
-				originalSource.Add(o.order)
+				err = originalSource.Add(o.order)
 			case source.RemovedOrder:
-				originalSource.Remove(o.order.ID)
+				err = originalSource.Remove(o.order.ID)
 			case source.PriceChanged:
-				originalSource.UpdatePrice(o.order.ID, o.order.Price)
+				err = originalSource.UpdatePrice(o.order.ID, o.order.Price)
+			}
+
+			if err != nil {
+				slog.Error("failed to modify source", "order", o.order, "error", err)
 			}
 		}
 	}(toExecute)
