@@ -1,5 +1,5 @@
 services:
-  db:
+  db_minimirror:
     container_name: minimirror
     image: mysql:8
     environment:
@@ -7,3 +7,11 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
     ports:
       - '3306:3306'
+  db_minimrp:
+    container_name: minimrp
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: minimrp
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - '3307:3306'
