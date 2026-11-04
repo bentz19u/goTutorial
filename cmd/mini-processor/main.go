@@ -132,7 +132,7 @@ func main() {
 	}(toExecute)
 
 	go func() {
-		poller.Run(ctx, originalSource, time.Duration(1)*time.Millisecond, out)
+		poller.Run(ctx, originalSource, 100*time.Millisecond, out)
 	}()
 
 	// main act a supervisor, it will generate goroutines for the consumers AND the dispatcher
