@@ -35,3 +35,15 @@ func (s *Store) AddMt5Deal(ctx context.Context, md Mt5Deal) error {
 
 	return nil
 }
+
+func (s *Store) purgeMt5Deals(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err := s.Db.ExecContext(ctx, "DELETE FROM mt5_deals")
+	if err != nil {
+		return fmt.Errorf("failed to purge mt5_deals: %w", err)
+	}
+
+	return nil
+}

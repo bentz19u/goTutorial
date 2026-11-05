@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 )
@@ -12,10 +13,10 @@ type Mt4Trade struct {
 	Symbol     string
 	Volume     int
 	OpenTime   time.Time
-	CloseTime  time.Time
+	CloseTime  sql.NullTime
 	OpenPrice  float64
-	ClosePrice float64
-	Profit     float64
+	ClosePrice sql.NullFloat64
+	Profit     sql.NullFloat64
 }
 
 func (s *Store) UpsertMt4Trade(ctx context.Context, mt Mt4Trade) error {
@@ -33,6 +34,18 @@ func (s *Store) UpsertMt4Trade(ctx context.Context, mt Mt4Trade) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert mt4_trade %d: %w", mt.Ticket, err)
+	}
+
+	return nil
+}
+
+func (s *Store) purgeMt4Trades(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err := s.Db.ExecContext(ctx, "DELETE FROM mt4_trades")
+	if err != nil {
+		return fmt.Errorf("failed to purge mt4_trades: %w", err)
 	}
 
 	return nil

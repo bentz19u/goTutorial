@@ -102,3 +102,17 @@ func InitTables(ctx context.Context, s *Store) error {
 
 	return nil
 }
+
+func PurgeTables(ctx context.Context, s *Store) error {
+	err := s.purgeMt4Trades(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.purgeMt5Deals(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
