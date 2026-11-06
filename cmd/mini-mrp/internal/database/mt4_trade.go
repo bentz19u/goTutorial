@@ -50,3 +50,16 @@ func (s *Store) purgeMt4Trades(ctx context.Context) error {
 
 	return nil
 }
+
+func (s *Store) CountMt4Trades(ctx context.Context) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	var result int
+	err := s.Db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mt4_trades").Scan(&result)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count mt4_trades: %w", err)
+	}
+
+	return result, nil
+}

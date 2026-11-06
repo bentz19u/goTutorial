@@ -35,15 +35,23 @@ func StartGenerator(ctx context.Context, store *database.Store, wg *sync.WaitGro
 		ticker := time.NewTicker(300 * time.Millisecond)
 		defer ticker.Stop()
 
+		checker := time.NewTicker(2 * time.Second)
+		defer checker.Stop()
+
 		// TODO: get the trades/deals to close from DB instead on purging them on boot
 		mt4TradeToClose := make(map[int]database.Mt4Trade)
 		mt5DealToClose := make(map[int]database.Mt5Deal)
-		ids := tradesIds{}
+		ids := tradesIds{ticket: 1, deal: 1, position: 1}
 
 		for {
 			select {
 			case <-ticker.C:
 				generate(ctx, store, mt4TradeToClose, mt5DealToClose, &ids)
+			case <-checker.C:
+				err := checkDatabaseData(ctx, store, &ids)
+				if err != nil {
+					slog.Error("error fetching database data", "error", err)
+				}
 			case <-ctx.Done():
 				slog.Info("generator shutting down")
 				return
@@ -183,4 +191,31 @@ func closeDeal(ctx context.Context, s *database.Store, mt5DealToClose map[int]da
 	ids.deal++
 
 	slog.Info("updated mt5 deal", "open_deal", openDeal, "close_deal", toInsert)
+}
+
+func checkDatabaseData(ctx context.Context, s *database.Store, ids *tradesIds) error {
+	countTrades, errMt4 := s.CountMt4Trades(ctx)
+	if errMt4 != nil {
+		return errMt4
+	}
+
+	countDeals, countPositions, errMt5 := s.CountMt5Deals(ctx)
+	if errMt5 != nil {
+		return errMt5
+	}
+
+	// IDs start at 1, it's actually the next available ID
+	// so we need to compare with ID - 1
+	if ids.ticket-1 != countTrades || ids.deal-1 != countDeals || ids.position-1 != countPositions {
+		slog.Error("check database completed, not matching",
+			"expected_trades", ids.ticket-1, "count_trades", countTrades,
+			"expected_deals", ids.deal-1, "count_deals", countDeals,
+			"expected_positions", ids.position-1, "count_positions", countPositions)
+	} else {
+		slog.Info("check database completed, matching",
+			"expected_trades", ids.ticket-1, "count_trades", countTrades,
+			"expected_deals", ids.deal-1, "count_deals", countDeals,
+			"expected_positions", ids.position-1, "count_positions", countPositions)
+	}
+	return nil
 }

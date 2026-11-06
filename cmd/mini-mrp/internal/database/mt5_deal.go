@@ -47,3 +47,15 @@ func (s *Store) purgeMt5Deals(ctx context.Context) error {
 
 	return nil
 }
+
+func (s *Store) CountMt5Deals(ctx context.Context) (deals int, positions int, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	err = s.Db.QueryRowContext(ctx, "SELECT COUNT(Deal), COUNT(DISTINCT PositionID) FROM mt5_deals").Scan(&deals, &positions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to count mt5_deals: %w", err)
+	}
+
+	return deals, positions, nil
+}
