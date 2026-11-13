@@ -24,7 +24,7 @@ func InitDatabase(ctx context.Context) (*Store, error) {
 		return nil, errors.New("DB_PASSWORD not configured")
 	}
 
-	db, err := sql.Open("mysql", fmt.Sprintf("root:%s@tcp(127.0.0.1:3307)/minimrp", dbPassword))
+	db, err := sql.Open("mysql", fmt.Sprintf("root:%s@tcp(127.0.0.1:3307)/minimrp?parseTime=true", dbPassword))
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/generator"
+	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/producer"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -44,6 +45,9 @@ func main() {
 
 	// generator, it will regularly add new orders to one of the DB, or close one existing one
 	generator.StartGenerator(ctx, store, &wg)
+
+	// producer will get the orders from all sources, normalize them and keep them in memory
+	producer.StartProducer(ctx, store, &wg)
 
 	wg.Wait()
 }

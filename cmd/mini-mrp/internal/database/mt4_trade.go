@@ -19,6 +19,43 @@ type Mt4Trade struct {
 	Profit     sql.NullFloat64
 }
 
+func (s *Store) GetMt4TradesFromCloseTime(ctx context.Context, fromDate *time.Time) ([]Mt4Trade, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	query := `SELECT ticket, account, symbol, volume, open_time,
+		close_time, open_price, close_price, profit FROM mt4_trades
+		WHERE close_time is not null`
+	var args []any
+	if fromDate != nil {
+		query += " AND close_time >= ?"
+		args = append(args, *fromDate)
+	}
+	query += " ORDER BY close_time ASC"
+
+	rows, err := s.Db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all mt4_trades, from date %v: %w", fromDate, err)
+	}
+	defer rows.Close()
+
+	var result []Mt4Trade
+	for rows.Next() {
+		var t Mt4Trade
+		if err := rows.Scan(&t.Ticket, &t.Account, &t.Symbol, &t.Volume, &t.OpenTime,
+			&t.CloseTime, &t.OpenPrice, &t.ClosePrice, &t.Profit); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		result = append(result, t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return result, nil
+}
+
 func (s *Store) UpsertMt4Trade(ctx context.Context, mt Mt4Trade) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
