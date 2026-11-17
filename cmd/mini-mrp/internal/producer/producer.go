@@ -44,23 +44,31 @@ func StartProducer(ctx context.Context, store *database.Store, wg *sync.WaitGrou
 	var watermarkMt4 *time.Time
 	var watermarkMt5 *int
 
+	window := ClosedTradeWindow{duration: 1 * time.Minute, window: make(map[tradeKey]ClosedTrade)}
+
 	go func() {
 		defer wg.Done()
 
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
+		tickerCleaningWindow := time.NewTicker(20 * time.Second)
+		defer tickerCleaningWindow.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
-				newWatermarkMt4 := processMt4(ctx, watermarkMt4, store)
+				newWatermarkMt4 := processMt4(ctx, watermarkMt4, store, &window)
 				if newWatermarkMt4 != nil {
 					watermarkMt4 = newWatermarkMt4
 				}
-				newWatermarkMt5 := processMt5(ctx, watermarkMt5, store)
+				newWatermarkMt5 := processMt5(ctx, watermarkMt5, store, &window)
 				if newWatermarkMt5 != nil {
 					watermarkMt5 = newWatermarkMt5
 				}
+			case <-tickerCleaningWindow.C:
+				count := window.removeExpired(time.Now())
+				slog.Info("removing expired trades from windows done", "trade_removed", count)
 			case <-ctx.Done():
 				slog.Info("producer shutting down")
 				return
@@ -69,7 +77,7 @@ func StartProducer(ctx context.Context, store *database.Store, wg *sync.WaitGrou
 	}()
 }
 
-func processMt4(ctx context.Context, watermark *time.Time, store *database.Store) *time.Time {
+func processMt4(ctx context.Context, watermark *time.Time, store *database.Store, window *ClosedTradeWindow) *time.Time {
 	trades, err := store.GetMt4TradesFromCloseTime(ctx, watermark)
 	if err != nil {
 		slog.Error("failed to get new mt4 trades", "error", err)
@@ -84,7 +92,10 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 
 	for _, t := range trades {
 		normalizedTrade := normalizeMt4(t)
-		slog.Info("trade normalized", "closed_trade", normalizedTrade)
+
+		window.add(normalizedTrade)
+
+		slog.Info("trade normalized and added to rolling window", "closed_trade", normalizedTrade)
 	}
 
 	// updating watermark
@@ -111,7 +122,7 @@ func normalizeMt4(t database.Mt4Trade) ClosedTrade {
 	return ct
 }
 
-func processMt5(ctx context.Context, watermark *int, store *database.Store) *int {
+func processMt5(ctx context.Context, watermark *int, store *database.Store, window *ClosedTradeWindow) *int {
 	deals, err := store.GetClosedMt5DealsFromDeal(ctx, watermark)
 	if err != nil {
 		slog.Error("failed to get new mt5 deals", "error", err)
@@ -126,7 +137,10 @@ func processMt5(ctx context.Context, watermark *int, store *database.Store) *int
 
 	for _, d := range deals {
 		normalizedDeal := normalizeMt5(d)
-		slog.Info("deal normalized", "closed_trade", normalizedDeal)
+
+		window.add(normalizedDeal)
+
+		slog.Info("deal normalized and added to rolling window", "closed_trade", normalizedDeal)
 	}
 
 	// updating watermark
