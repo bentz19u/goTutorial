@@ -3,11 +3,39 @@ package producer
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync"
 	"time"
 
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
 )
+
+type Server string
+
+const (
+	Mt4Live1 Server = "mt4_live1"
+	Mt5Live1 Server = "mt5_live1"
+)
+
+const (
+	volumeToLotMt4 = 100
+	volumeToLotMt5 = 10000
+	priceDecimal   = 100000
+	profitDecimal  = 100
+)
+
+type ClosedTrade struct {
+	ServerId   Server
+	Ticket     int
+	Account    int
+	Symbol     string
+	Lot        float64
+	OpenTime   time.Time
+	CloseTime  time.Time
+	OpenPrice  int64
+	ClosePrice int64
+	Profit     int64
+}
 
 func StartProducer(ctx context.Context, store *database.Store, wg *sync.WaitGroup) {
 	wg.Add(1)
@@ -54,7 +82,10 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 
 	slog.Info("new trades found", "trades", trades)
 
-	// simulating processing them
+	for _, t := range trades {
+		normalizedTrade := normalizeMt4(t)
+		slog.Info("trade normalized", "closed_trade", normalizedTrade)
+	}
 
 	// updating watermark
 	last := trades[len(trades)-1]
@@ -62,6 +93,22 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 
 	slog.Info("mt4 watermark updated", "watermark", watermark)
 	return watermark
+}
+
+func normalizeMt4(t database.Mt4Trade) ClosedTrade {
+	var ct ClosedTrade
+	ct.ServerId = Mt4Live1
+	ct.Ticket = t.Ticket
+	ct.Account = t.Account
+	ct.Symbol = t.Symbol
+	ct.Lot = float64(t.Volume) / volumeToLotMt4
+	ct.OpenTime = t.OpenTime
+	ct.CloseTime = t.CloseTime.Time
+	ct.OpenPrice = int64(math.Round(t.OpenPrice * priceDecimal))
+	ct.ClosePrice = int64(math.Round(t.ClosePrice.Float64 * priceDecimal))
+	ct.Profit = int64(math.Round(t.Profit.Float64 * profitDecimal))
+
+	return ct
 }
 
 func processMt5(ctx context.Context, watermark *int, store *database.Store) *int {
@@ -77,12 +124,31 @@ func processMt5(ctx context.Context, watermark *int, store *database.Store) *int
 
 	slog.Info("new deals found", "deals", deals)
 
-	// simulating processing them
+	for _, d := range deals {
+		normalizedDeal := normalizeMt5(d)
+		slog.Info("deal normalized", "closed_trade", normalizedDeal)
+	}
 
 	// updating watermark
 	last := deals[len(deals)-1]
-	watermark = &last.Deal
+	watermark = &last.CloseDeal
 
 	slog.Info("mt5 watermark updated", "watermark", watermark)
 	return watermark
+}
+
+func normalizeMt5(d database.ClosedMt5Deal) ClosedTrade {
+	var ct ClosedTrade
+	ct.ServerId = Mt5Live1
+	ct.Ticket = d.CloseDeal
+	ct.Account = d.Login
+	ct.Symbol = d.Symbol
+	ct.Lot = float64(d.Volume) / volumeToLotMt5
+	ct.OpenTime = d.OpenTime
+	ct.CloseTime = d.CloseTime
+	ct.OpenPrice = int64(math.Round(d.OpenPrice * priceDecimal))
+	ct.ClosePrice = int64(math.Round(d.ClosePrice * priceDecimal))
+	ct.Profit = int64(math.Round(d.Profit * profitDecimal))
+
+	return ct
 }

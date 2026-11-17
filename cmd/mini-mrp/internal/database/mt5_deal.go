@@ -18,20 +18,37 @@ type Mt5Deal struct {
 	Profit     float64
 }
 
-func (s *Store) GetClosedMt5DealsFromDeal(ctx context.Context, fromDeal *int) ([]Mt5Deal, error) {
+type ClosedMt5Deal struct {
+	OpenDeal   int
+	CloseDeal  int
+	PositionID int
+	Login      int
+	Symbol     string
+	Volume     int
+	OpenTime   time.Time
+	CloseTime  time.Time
+	OpenPrice  float64
+	ClosePrice float64
+	Profit     float64
+}
+
+func (s *Store) GetClosedMt5DealsFromDeal(ctx context.Context, fromDeal *int) ([]ClosedMt5Deal, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	query := `SELECT Deal, PositionID, Entry, Login, Symbol,
-		Volume, Time, Price, Profit 
-		FROM mt5_deals
-		WHERE Entry = 1`
+	query := `SELECT open.Deal as openDeal, close.Deal as closeDeal, 
+		close.PositionID, close.Login, close.Symbol,
+		close.Volume, open.Time as openTime, close.Time as closeTime, 
+		open.Price as openPrice, close.Price as closePrice, close.Profit 
+		FROM mt5_deals AS close
+		INNER JOIN mt5_deals AS open ON close.PositionID = open.PositionId and open.Entry = 0
+		WHERE close.Entry = 1`
 	var args []any
 	if fromDeal != nil {
-		query += " AND Deal > ?"
+		query += " AND close.Deal > ?"
 		args = append(args, fromDeal)
 	}
-	query += " ORDER BY Deal ASC"
+	query += " ORDER BY close.Deal ASC"
 
 	rows, err := s.Db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -39,11 +56,12 @@ func (s *Store) GetClosedMt5DealsFromDeal(ctx context.Context, fromDeal *int) ([
 	}
 	defer rows.Close()
 
-	var result []Mt5Deal
+	var result []ClosedMt5Deal
 	for rows.Next() {
-		var d Mt5Deal
-		if err := rows.Scan(&d.Deal, &d.PositionID, &d.Entry, &d.Login, &d.Symbol,
-			&d.Volume, &d.Time, &d.Price, &d.Profit); err != nil {
+		var d ClosedMt5Deal
+		if err := rows.Scan(&d.OpenDeal, &d.CloseDeal, &d.PositionID,
+			&d.Login, &d.Symbol, &d.Volume,
+			&d.OpenTime, &d.CloseTime, &d.OpenPrice, &d.ClosePrice, &d.Profit); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		result = append(result, d)

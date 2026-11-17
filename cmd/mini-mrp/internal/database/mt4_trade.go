@@ -24,7 +24,8 @@ func (s *Store) GetMt4TradesFromCloseTime(ctx context.Context, fromDate *time.Ti
 	defer cancel()
 
 	query := `SELECT ticket, account, symbol, volume, open_time,
-		close_time, open_price, close_price, profit FROM mt4_trades
+		close_time, open_price, close_price, profit 
+		FROM mt4_trades
 		WHERE close_time is not null`
 	var args []any
 	if fromDate != nil {
