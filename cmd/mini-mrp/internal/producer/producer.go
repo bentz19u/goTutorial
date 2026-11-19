@@ -37,14 +37,12 @@ type ClosedTrade struct {
 	Profit     int64
 }
 
-func StartProducer(ctx context.Context, store *database.Store, wg *sync.WaitGroup) {
+func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *database.Store, wg *sync.WaitGroup) {
 	wg.Add(1)
 
 	// on boot, for now, watermark start at nil
 	var watermarkMt4 *time.Time
 	var watermarkMt5 *int
-
-	window := ClosedTradeWindow{duration: 1 * time.Minute, window: make(map[tradeKey]ClosedTrade)}
 
 	go func() {
 		defer wg.Done()
@@ -58,11 +56,11 @@ func StartProducer(ctx context.Context, store *database.Store, wg *sync.WaitGrou
 		for {
 			select {
 			case <-ticker.C:
-				newWatermarkMt4 := processMt4(ctx, watermarkMt4, store, &window)
+				newWatermarkMt4 := processMt4(ctx, watermarkMt4, store, window)
 				if newWatermarkMt4 != nil {
 					watermarkMt4 = newWatermarkMt4
 				}
-				newWatermarkMt5 := processMt5(ctx, watermarkMt5, store, &window)
+				newWatermarkMt5 := processMt5(ctx, watermarkMt5, store, window)
 				if newWatermarkMt5 != nil {
 					watermarkMt5 = newWatermarkMt5
 				}

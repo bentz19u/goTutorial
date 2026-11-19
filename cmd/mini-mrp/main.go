@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
+	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/consumer"
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/generator"
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/producer"
@@ -47,7 +49,10 @@ func main() {
 	generator.StartGenerator(ctx, store, &wg)
 
 	// producer will get the orders from all sources, normalize them and keep them in memory
-	producer.StartProducer(ctx, store, &wg)
+	window := producer.NewClosedTradeWindow(1 * time.Minute)
+	producer.StartProducer(ctx, window, store, &wg)
+
+	consumer.StartProfitConsumer(ctx, window, &wg)
 
 	wg.Wait()
 }
