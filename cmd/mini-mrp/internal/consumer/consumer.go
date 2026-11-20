@@ -1,7 +1,7 @@
 package consumer
 
-import "github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/producer"
+import "github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
 
 type Window interface {
-	GetAllClosedTradesSorted() []producer.ClosedTrade
+	GetAllClosedTradesSorted() []model.ClosedTrade
 }

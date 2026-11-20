@@ -14,8 +14,28 @@ type Store struct {
 	Db *sql.DB
 }
 
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 func new(db *sql.DB) *Store {
 	return &Store{Db: db}
+}
+
+func (s *Store) WithTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	tx, err := s.Db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() // no-op once Commit has succeeded
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
 }
 
 func InitDatabase(ctx context.Context) (*Store, error) {
@@ -89,6 +109,37 @@ func initMt5Table(ctx context.Context, s *Store) error {
 	return nil
 }
 
+func initAccountProfitTable(ctx context.Context, s *Store) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err := s.Db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS account_profits (
+		server VARCHAR(16) NOT NULL,
+		login INT NOT NULL,
+		profitCents BIGINT NOT NULL DEFAULT 0,
+		PRIMARY KEY (server, login)
+	)`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func initProcessedTradesTable(ctx context.Context, s *Store) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err := s.Db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS processed_trades (
+		server VARCHAR(16) NOT NULL,
+		ticket INT NOT NULL,
+		PRIMARY KEY (server, ticket)
+	)`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func InitTables(ctx context.Context, s *Store) error {
 	err := initMt4Table(ctx, s)
 	if err != nil {
@@ -96,6 +147,16 @@ func InitTables(ctx context.Context, s *Store) error {
 	}
 
 	err = initMt5Table(ctx, s)
+	if err != nil {
+		return err
+	}
+
+	err = initAccountProfitTable(ctx, s)
+	if err != nil {
+		return err
+	}
+
+	err = initProcessedTradesTable(ctx, s)
 	if err != nil {
 		return err
 	}
@@ -110,6 +171,16 @@ func PurgeTables(ctx context.Context, s *Store) error {
 	}
 
 	err = s.purgeMt5Deals(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.purgeAccountProfits(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.purgeProcessedTrades(ctx)
 	if err != nil {
 		return err
 	}

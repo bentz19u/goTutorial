@@ -53,6 +53,7 @@ func main() {
 	producer.StartProducer(ctx, window, store, &wg)
 
 	consumer.StartProfitConsumer(ctx, window, &wg)
+	consumer.StartProfitPerAccountConsumer(ctx, store, window, &wg)
 
 	wg.Wait()
 }

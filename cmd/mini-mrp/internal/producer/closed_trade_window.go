@@ -6,27 +6,29 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
 )
 
 type tradeKey struct {
-	server Server
+	server model.Server
 	ticket int
 }
 
 type ClosedTradeWindow struct {
 	duration time.Duration
 	mu       sync.Mutex
-	window   map[tradeKey]ClosedTrade
+	window   map[tradeKey]model.ClosedTrade
 }
 
 func NewClosedTradeWindow(d time.Duration) *ClosedTradeWindow {
 	return &ClosedTradeWindow{
 		duration: d,
-		window:   make(map[tradeKey]ClosedTrade),
+		window:   make(map[tradeKey]model.ClosedTrade),
 	}
 }
 
-func (w *ClosedTradeWindow) add(ct ClosedTrade) {
+func (w *ClosedTradeWindow) add(ct model.ClosedTrade) {
 	key := tradeKey{server: ct.ServerId, ticket: ct.Ticket}
 
 	w.mu.Lock()
@@ -53,12 +55,12 @@ func (w *ClosedTradeWindow) removeExpired(fromTime time.Time) int {
 	return removed
 }
 
-func (w *ClosedTradeWindow) GetAllClosedTradesSorted() []ClosedTrade {
+func (w *ClosedTradeWindow) GetAllClosedTradesSorted() []model.ClosedTrade {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	trades := slices.Collect(maps.Values(w.window))
-	slices.SortFunc(trades, func(a, b ClosedTrade) int {
+	slices.SortFunc(trades, func(a, b model.ClosedTrade) int {
 		return b.CloseTime.Compare(a.CloseTime)
 	})
 	return trades

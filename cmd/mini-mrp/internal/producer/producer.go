@@ -8,13 +8,7 @@ import (
 	"time"
 
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
-)
-
-type Server string
-
-const (
-	Mt4Live1 Server = "mt4_live1"
-	Mt5Live1 Server = "mt5_live1"
+	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
 )
 
 const (
@@ -23,19 +17,6 @@ const (
 	priceDecimal   = 100000
 	profitDecimal  = 100
 )
-
-type ClosedTrade struct {
-	ServerId   Server
-	Ticket     int
-	Account    int
-	Symbol     string
-	Lot        float64
-	OpenTime   time.Time
-	CloseTime  time.Time
-	OpenPrice  int64
-	ClosePrice int64
-	Profit     int64
-}
 
 func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *database.Store, wg *sync.WaitGroup) {
 	wg.Add(1)
@@ -104,9 +85,9 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 	return watermark
 }
 
-func normalizeMt4(t database.Mt4Trade) ClosedTrade {
-	var ct ClosedTrade
-	ct.ServerId = Mt4Live1
+func normalizeMt4(t database.Mt4Trade) model.ClosedTrade {
+	var ct model.ClosedTrade
+	ct.ServerId = model.Mt4Live1
 	ct.Ticket = t.Ticket
 	ct.Account = t.Account
 	ct.Symbol = t.Symbol
@@ -149,9 +130,9 @@ func processMt5(ctx context.Context, watermark *int, store *database.Store, wind
 	return watermark
 }
 
-func normalizeMt5(d database.ClosedMt5Deal) ClosedTrade {
-	var ct ClosedTrade
-	ct.ServerId = Mt5Live1
+func normalizeMt5(d database.ClosedMt5Deal) model.ClosedTrade {
+	var ct model.ClosedTrade
+	ct.ServerId = model.Mt5Live1
 	ct.Ticket = d.CloseDeal
 	ct.Account = d.Login
 	ct.Symbol = d.Symbol
