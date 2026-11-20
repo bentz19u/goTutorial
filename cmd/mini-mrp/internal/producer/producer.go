@@ -67,21 +67,21 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 		return nil
 	}
 
-	slog.Info("new trades found", "trades", trades)
+	slog.Debug("new trades found", "trades", trades)
 
 	for _, t := range trades {
 		normalizedTrade := normalizeMt4(t)
 
 		window.add(normalizedTrade)
 
-		slog.Info("trade normalized and added to rolling window", "closed_trade", normalizedTrade)
+		slog.Debug("trade normalized and added to rolling window", "closed_trade", normalizedTrade)
 	}
 
 	// updating watermark
 	last := trades[len(trades)-1]
 	watermark = &last.CloseTime.Time
 
-	slog.Info("mt4 watermark updated", "watermark", watermark)
+	slog.Debug("mt4 watermark updated", "watermark", watermark)
 	return watermark
 }
 
@@ -112,21 +112,21 @@ func processMt5(ctx context.Context, watermark *int, store *database.Store, wind
 		return nil
 	}
 
-	slog.Info("new deals found", "deals", deals)
+	slog.Debug("new deals found", "deals", deals)
 
 	for _, d := range deals {
 		normalizedDeal := normalizeMt5(d)
 
 		window.add(normalizedDeal)
 
-		slog.Info("deal normalized and added to rolling window", "closed_trade", normalizedDeal)
+		slog.Debug("deal normalized and added to rolling window", "closed_trade", normalizedDeal)
 	}
 
 	// updating watermark
 	last := deals[len(deals)-1]
 	watermark = &last.CloseDeal
 
-	slog.Info("mt5 watermark updated", "watermark", watermark)
+	slog.Debug("mt5 watermark updated", "watermark", watermark)
 	return watermark
 }
 

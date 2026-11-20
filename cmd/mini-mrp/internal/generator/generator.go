@@ -111,7 +111,7 @@ func addTrade(ctx context.Context, s *database.Store, mt4TradeToClose map[int]da
 	mt4TradeToClose[mt.Ticket] = mt
 	ids.ticket++
 
-	slog.Info("inserted to mt4 trades", "mt4_trade", mt)
+	slog.Debug("inserted to mt4 trades", "mt4_trade", mt)
 }
 
 func addDeal(ctx context.Context, s *database.Store, mt5DealToClose map[int]database.Mt5Deal, ids *tradesIds) {
@@ -138,7 +138,7 @@ func addDeal(ctx context.Context, s *database.Store, mt5DealToClose map[int]data
 	ids.deal++
 	ids.position++
 
-	slog.Info("inserted to mt5 deals", "mt5_deal", md)
+	slog.Debug("inserted to mt5 deals", "mt5_deal", md)
 }
 
 func closeTrade(ctx context.Context, s *database.Store, mt4TradeToClose map[int]database.Mt4Trade) {
@@ -160,7 +160,7 @@ func closeTrade(ctx context.Context, s *database.Store, mt4TradeToClose map[int]
 
 	delete(mt4TradeToClose, ticket)
 
-	slog.Info("updated mt4 trade", "mt4_trade", trade)
+	slog.Debug("updated mt4 trade", "mt4_trade", trade)
 }
 
 func closeDeal(ctx context.Context, s *database.Store, mt5DealToClose map[int]database.Mt5Deal, ids *tradesIds) {
@@ -190,7 +190,7 @@ func closeDeal(ctx context.Context, s *database.Store, mt5DealToClose map[int]da
 	delete(mt5DealToClose, deal)
 	ids.deal++
 
-	slog.Info("updated mt5 deal", "open_deal", openDeal, "close_deal", toInsert)
+	slog.Debug("updated mt5 deal", "open_deal", openDeal, "close_deal", toInsert)
 }
 
 func checkDatabaseData(ctx context.Context, s *database.Store, ids *tradesIds) error {
