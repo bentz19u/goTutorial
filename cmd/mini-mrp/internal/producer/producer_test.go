@@ -1,7 +1,9 @@
 package producer
 
 import (
+	"cmp"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
@@ -95,6 +97,77 @@ func TestNormalizeMt5(t *testing.T) {
 
 			if test.want != got {
 				t.Errorf("Failed closed trade: got %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestVerifyWindow(t *testing.T) {
+	tests := map[string]struct {
+		mt4Trades   []database.Mt4Trade
+		mt5Deals    []database.ClosedMt5Deal
+		snapshot    map[tradeKey]bool
+		wantMissing []tradeKey
+		wantExtra   []tradeKey
+	}{
+		"All good, nothing to report": {
+			mt4Trades: []database.Mt4Trade{{Ticket: 1}, {Ticket: 2}},
+			mt5Deals:  []database.ClosedMt5Deal{{CloseDeal: 1}, {CloseDeal: 2}},
+			snapshot: map[tradeKey]bool{
+				{server: model.Mt4Live1, ticket: 1}: true,
+				{server: model.Mt4Live1, ticket: 2}: true,
+				{server: model.Mt5Live1, ticket: 1}: true,
+				{server: model.Mt5Live1, ticket: 2}: true,
+			},
+		},
+		"One mt4 and one mt5 are missing": {
+			mt4Trades: []database.Mt4Trade{{Ticket: 1}, {Ticket: 2}},
+			mt5Deals:  []database.ClosedMt5Deal{{CloseDeal: 1}, {CloseDeal: 2}},
+			snapshot: map[tradeKey]bool{
+				{server: model.Mt4Live1, ticket: 1}: true,
+				{server: model.Mt5Live1, ticket: 1}: true,
+			},
+			wantMissing: []tradeKey{
+				{server: model.Mt4Live1, ticket: 2},
+				{server: model.Mt5Live1, ticket: 2},
+			},
+		},
+		"Two trades are in the window but not in the source": {
+			mt4Trades: []database.Mt4Trade{{Ticket: 1}},
+			mt5Deals:  []database.ClosedMt5Deal{{CloseDeal: 1}},
+			snapshot: map[tradeKey]bool{
+				{server: model.Mt4Live1, ticket: 1}: true,
+				{server: model.Mt4Live1, ticket: 2}: true,
+				{server: model.Mt5Live1, ticket: 1}: true,
+				{server: model.Mt5Live1, ticket: 2}: true,
+			},
+			wantExtra: []tradeKey{
+				{server: model.Mt4Live1, ticket: 2},
+				{server: model.Mt5Live1, ticket: 2},
+			},
+		},
+	}
+
+	// extra is built by ranging over a map, so its order changes between runs:
+	// sort both results before comparing (the want literals above are written in the same order)
+	sortKeys := func(keys []tradeKey) {
+		slices.SortFunc(keys, func(a, b tradeKey) int {
+			return cmp.Or(cmp.Compare(a.server, b.server), cmp.Compare(a.ticket, b.ticket))
+		})
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotMissing, gotExtra := verifyWindow(test.mt4Trades, test.mt5Deals, test.snapshot)
+			sortKeys(gotMissing)
+			sortKeys(gotExtra)
+
+			if !slices.Equal(gotMissing, test.wantMissing) {
+				t.Errorf("Wrong missing trades: got %v, want %v", gotMissing, test.wantMissing)
+			}
+
+			if !slices.Equal(gotExtra, test.wantExtra) {
+				t.Errorf("Wrong extra trades: got %v, want %v", gotExtra, test.wantExtra)
 			}
 		})
 	}

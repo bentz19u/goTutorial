@@ -2,6 +2,7 @@ package producer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math"
 	"sync"
@@ -34,6 +35,9 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 		tickerCleaningWindow := time.NewTicker(20 * time.Second)
 		defer tickerCleaningWindow.Stop()
 
+		tickerReconcile := time.NewTicker(15 * time.Second)
+		defer tickerReconcile.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -48,6 +52,18 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 			case <-tickerCleaningWindow.C:
 				count := window.removeExpired(time.Now())
 				slog.Info("removing expired trades from windows done", "trade_removed", count)
+			case <-tickerReconcile.C:
+				missing, extra, err := processReconcile(ctx, window, store)
+				if err != nil {
+					slog.Error("reconcile raised an error", "error", err)
+					continue
+				}
+
+				if len(missing) > 0 || len(extra) > 0 {
+					slog.Warn("reconcile ran and found inconsistency", "missing", missing, "extra", extra)
+				} else {
+					slog.Info("reconcile found nothing")
+				}
 			case <-ctx.Done():
 				slog.Info("producer shutting down")
 				return
@@ -57,7 +73,7 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 }
 
 func processMt4(ctx context.Context, watermark *time.Time, store *database.Store, window *ClosedTradeWindow) *time.Time {
-	trades, err := store.GetMt4TradesFromCloseTime(ctx, watermark)
+	trades, err := store.GetMt4TradesFromPeriod(ctx, watermark, nil)
 	if err != nil {
 		slog.Error("failed to get new mt4 trades", "error", err)
 		return nil
@@ -144,4 +160,59 @@ func normalizeMt5(d database.ClosedMt5Deal) model.ClosedTrade {
 	ct.Profit = int64(math.Round(d.Profit * profitDecimal))
 
 	return ct
+}
+
+func processReconcile(ctx context.Context, window *ClosedTradeWindow, store *database.Store) ([]tradeKey, []tradeKey, error) {
+	now := time.Now()
+	toTime := now.Add(-2 * time.Second)
+	fromTime := now.Add(-window.duration).Add(10 * time.Second)
+	mt4ClosedTrades, err := store.GetMt4TradesFromPeriod(ctx, &fromTime, &toTime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while getting the mt4 closed trades, err: %w", err)
+	}
+
+	mt5ClosedTrades, err := store.GetClosedMt5DealsFromPeriod(ctx, &fromTime, &toTime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while getting the mt5 closed deals, err: %w", err)
+	}
+
+	windowSnapshot := window.Snapshot(&fromTime, &toTime)
+
+	missing, extra := verifyWindow(mt4ClosedTrades, mt5ClosedTrades, windowSnapshot)
+
+	return missing, extra, nil
+}
+
+func verifyWindow(mt4Trades []database.Mt4Trade, mt5Deals []database.ClosedMt5Deal, snap map[tradeKey]bool) ([]tradeKey, []tradeKey) {
+	var missing, extra []tradeKey
+	setMt4Trades := make(map[tradeKey]bool)
+	setMt5Deals := make(map[tradeKey]bool)
+
+	for _, mt4T := range mt4Trades {
+		tk := tradeKey{server: model.Mt4Live1, ticket: mt4T.Ticket}
+		if _, ok := snap[tk]; !ok {
+			missing = append(missing, tk)
+		}
+		setMt4Trades[tk] = true
+	}
+
+	for _, mt5D := range mt5Deals {
+		tk := tradeKey{server: model.Mt5Live1, ticket: mt5D.CloseDeal}
+		if _, ok := snap[tk]; !ok {
+			missing = append(missing, tk)
+		}
+		setMt5Deals[tk] = true
+	}
+
+	for key := range snap {
+		if _, ok := setMt4Trades[key]; ok {
+			continue
+		}
+		if _, ok := setMt5Deals[key]; ok {
+			continue
+		}
+		extra = append(extra, key)
+	}
+
+	return missing, extra
 }

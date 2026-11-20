@@ -19,7 +19,7 @@ type Mt4Trade struct {
 	Profit     sql.NullFloat64
 }
 
-func (s *Store) GetMt4TradesFromCloseTime(ctx context.Context, fromDate *time.Time) ([]Mt4Trade, error) {
+func (s *Store) GetMt4TradesFromPeriod(ctx context.Context, fromDate *time.Time, toDate *time.Time) ([]Mt4Trade, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -32,11 +32,15 @@ func (s *Store) GetMt4TradesFromCloseTime(ctx context.Context, fromDate *time.Ti
 		query += " AND close_time >= ?"
 		args = append(args, *fromDate)
 	}
+	if toDate != nil {
+		query += " AND close_time < ?"
+		args = append(args, *toDate)
+	}
 	query += " ORDER BY close_time ASC"
 
 	rows, err := s.Db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query all mt4_trades, from date %v: %w", fromDate, err)
+		return nil, fmt.Errorf("failed to query all mt4_trades, from date %v, to date %v: %w", fromDate, toDate, err)
 	}
 	defer rows.Close()
 

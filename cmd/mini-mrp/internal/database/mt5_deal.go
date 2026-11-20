@@ -74,6 +74,48 @@ func (s *Store) GetClosedMt5DealsFromDeal(ctx context.Context, fromDeal *int) ([
 	return result, nil
 }
 
+func (s *Store) GetClosedMt5DealsFromPeriod(ctx context.Context, fromTime *time.Time, toTime *time.Time) ([]ClosedMt5Deal, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	query := `SELECT open.Deal as openDeal, close.Deal as closeDeal, 
+		close.PositionID, close.Login, close.Symbol,
+		close.Volume, open.Time as openTime, close.Time as closeTime, 
+		open.Price as openPrice, close.Price as closePrice, close.Profit 
+		FROM mt5_deals AS close
+		INNER JOIN mt5_deals AS open ON close.PositionID = open.PositionId and open.Entry = 0
+		WHERE close.Entry = 1
+		AND close.Time >= ?
+		AND close.Time < ?
+		ORDER BY close.Deal ASC`
+	var args []any
+	args = append(args, fromTime)
+	args = append(args, toTime)
+
+	rows, err := s.Db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all mt5_deals, from time %v: %w", fromTime, err)
+	}
+	defer rows.Close()
+
+	var result []ClosedMt5Deal
+	for rows.Next() {
+		var d ClosedMt5Deal
+		if err := rows.Scan(&d.OpenDeal, &d.CloseDeal, &d.PositionID,
+			&d.Login, &d.Symbol, &d.Volume,
+			&d.OpenTime, &d.CloseTime, &d.OpenPrice, &d.ClosePrice, &d.Profit); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		result = append(result, d)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return result, nil
+}
+
 func (s *Store) AddMt5Deal(ctx context.Context, md Mt5Deal) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()

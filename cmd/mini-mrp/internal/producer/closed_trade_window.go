@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"encoding/json"
 	"log/slog"
 	"maps"
 	"slices"
@@ -13,6 +14,13 @@ import (
 type tradeKey struct {
 	server model.Server
 	ticket int
+}
+
+func (k tradeKey) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Server model.Server `json:"server"`
+		Ticket int          `json:"ticket"`
+	}{k.server, k.ticket})
 }
 
 type ClosedTradeWindow struct {
@@ -46,7 +54,7 @@ func (w *ClosedTradeWindow) removeExpired(fromTime time.Time) int {
 
 	for key, ct := range w.window {
 		if ct.CloseTime.Before(beforeTime) {
-			slog.Info("closed trade has been removed from window", "closed_trade", ct)
+			slog.Debug("closed trade has been removed from window", "closed_trade", ct)
 			delete(w.window, key)
 			removed += 1
 		}
@@ -64,4 +72,21 @@ func (w *ClosedTradeWindow) GetAllClosedTradesSorted() []model.ClosedTrade {
 		return b.CloseTime.Compare(a.CloseTime)
 	})
 	return trades
+}
+
+func (w *ClosedTradeWindow) Snapshot(fromDate *time.Time, toDate *time.Time) map[tradeKey]bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	keys := make(map[tradeKey]bool, len(w.window))
+	for k, ct := range w.window {
+		if ct.CloseTime.Before(*fromDate) {
+			continue
+		}
+		if !ct.CloseTime.Before(*toDate) {
+			continue
+		}
+		keys[k] = true
+	}
+	return keys
 }
