@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/consumer"
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
 )
@@ -20,7 +21,7 @@ const (
 	heartBeatInterval = 10 * time.Second
 )
 
-func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *database.Store, wg *sync.WaitGroup) {
+func StartProducer(ctx context.Context, window *ClosedTradeWindow, fanout *consumer.Fanout, store *database.Store, wg *sync.WaitGroup) {
 	wg.Add(1)
 
 	// on boot, for now, watermark start at nil
@@ -44,7 +45,7 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 		for {
 			select {
 			case <-ticker.C:
-				newWatermarkMt4, errMt4 := processMt4(ctx, watermarkMt4, store, window)
+				mt4Trades, newWatermarkMt4, errMt4 := processMt4(ctx, watermarkMt4, store, window)
 				if errMt4 != nil {
 					slog.Error("failed process mt4", "error", errMt4)
 				}
@@ -52,12 +53,17 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 					watermarkMt4 = newWatermarkMt4
 				}
 
-				newWatermarkMt5, errMt5 := processMt5(ctx, watermarkMt5, store, window)
+				mt5Trades, newWatermarkMt5, errMt5 := processMt5(ctx, watermarkMt5, store, window)
 				if errMt5 != nil {
 					slog.Error("failed process mt5", "error", errMt5)
 				}
 				if newWatermarkMt5 != nil {
 					watermarkMt5 = newWatermarkMt5
+				}
+
+				if len(mt4Trades) > 0 || len(mt5Trades) > 0 {
+					merged := append(mt4Trades, mt5Trades...)
+					fanout.Dispatch(ctx, merged)
 				}
 
 				if errMt4 == nil && errMt5 == nil {
@@ -86,24 +92,28 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 	}()
 }
 
-func processMt4(ctx context.Context, watermark *time.Time, store *database.Store, window *ClosedTradeWindow) (*time.Time, error) {
+func processMt4(ctx context.Context, watermark *time.Time, store *database.Store, window *ClosedTradeWindow) ([]model.ClosedTrade, *time.Time, error) {
 	trades, err := store.GetMt4TradesFromPeriod(ctx, watermark, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get new mt4 trades, error: %w", err)
+		return nil, nil, fmt.Errorf("failed to get new mt4 trades, error: %w", err)
 	}
 
 	if len(trades) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	slog.Debug("new trades found", "trades", trades)
 
+	var newTrades []model.ClosedTrade
 	for _, t := range trades {
 		normalizedTrade := normalizeMt4(t)
 
-		window.add(normalizedTrade)
+		isNew := window.add(normalizedTrade)
+		if isNew {
+			newTrades = append(newTrades, normalizedTrade)
 
-		slog.Debug("trade normalized and added to rolling window", "closed_trade", normalizedTrade)
+			slog.Debug("trade normalized and added to rolling window", "closed_trade", normalizedTrade)
+		}
 	}
 
 	// updating watermark
@@ -111,7 +121,7 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 	watermark = &last.CloseTime.Time
 
 	slog.Debug("mt4 watermark updated", "watermark", watermark)
-	return watermark, nil
+	return newTrades, watermark, nil
 }
 
 func normalizeMt4(t database.Mt4Trade) model.ClosedTrade {
@@ -130,24 +140,28 @@ func normalizeMt4(t database.Mt4Trade) model.ClosedTrade {
 	return ct
 }
 
-func processMt5(ctx context.Context, watermark *int, store *database.Store, window *ClosedTradeWindow) (*int, error) {
+func processMt5(ctx context.Context, watermark *int, store *database.Store, window *ClosedTradeWindow) ([]model.ClosedTrade, *int, error) {
 	deals, err := store.GetClosedMt5DealsFromDeal(ctx, watermark)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get new mt5 deals, error: %w", err)
+		return nil, nil, fmt.Errorf("failed to get new mt5 deals, error: %w", err)
 	}
 
 	if len(deals) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	slog.Debug("new deals found", "deals", deals)
 
+	var newTrades []model.ClosedTrade
 	for _, d := range deals {
 		normalizedDeal := normalizeMt5(d)
 
-		window.add(normalizedDeal)
+		isNew := window.add(normalizedDeal)
+		if isNew {
+			newTrades = append(newTrades, normalizedDeal)
 
-		slog.Debug("deal normalized and added to rolling window", "closed_trade", normalizedDeal)
+			slog.Debug("deal normalized and added to rolling window", "closed_trade", normalizedDeal)
+		}
 	}
 
 	// updating watermark
@@ -155,7 +169,7 @@ func processMt5(ctx context.Context, watermark *int, store *database.Store, wind
 	watermark = &last.CloseDeal
 
 	slog.Debug("mt5 watermark updated", "watermark", watermark)
-	return watermark, nil
+	return newTrades, watermark, nil
 }
 
 func normalizeMt5(d database.ClosedMt5Deal) model.ClosedTrade {

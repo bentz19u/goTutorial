@@ -18,16 +18,24 @@ func TestAdd(t *testing.T) {
 
 	ct := model.ClosedTrade{ServerId: model.Mt4Live1, Ticket: 1, Account: 1, Symbol: "USDJPY",
 		Lot: 1.00, OpenTime: time.Now(), CloseTime: time.Now(), OpenPrice: 1, ClosePrice: 1, Profit: 1}
-	ctw.add(ct)
+	isNew := ctw.add(ct)
 
 	if len(ctw.window) != 1 {
 		t.Errorf("Wrong amount of trades remaining in window: got %d, want %d", len(ctw.window), 1)
 	}
 
+	if !isNew {
+		t.Errorf("Add result is wrong: got %t, want %t", false, true)
+	}
+
 	// testing idempotency, we should keep the same amount of trades
-	ctw.add(ct)
+	isNew = ctw.add(ct)
 	if len(ctw.window) != 1 {
 		t.Errorf("Wrong amount of trades remaining in window: got %d, want %d", len(ctw.window), 1)
+	}
+
+	if isNew {
+		t.Errorf("Add result is wrong: got %t, want %t", true, false)
 	}
 }
 

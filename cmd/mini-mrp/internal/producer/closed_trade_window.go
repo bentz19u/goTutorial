@@ -36,13 +36,19 @@ func NewClosedTradeWindow(d time.Duration) *ClosedTradeWindow {
 	}
 }
 
-func (w *ClosedTradeWindow) add(ct model.ClosedTrade) {
+func (w *ClosedTradeWindow) add(ct model.ClosedTrade) bool {
 	key := tradeKey{server: ct.ServerId, ticket: ct.Ticket}
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	isNew := true
+	if _, ok := w.window[key]; ok {
+		isNew = false
+	}
+
 	w.window[key] = ct
+	return isNew
 }
 
 func (w *ClosedTradeWindow) removeExpired(fromTime time.Time) int {

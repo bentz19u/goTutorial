@@ -50,7 +50,10 @@ func main() {
 
 	// producer will get the orders from all sources, normalize them and keep them in memory
 	window := producer.NewClosedTradeWindow(1 * time.Minute)
-	producer.StartProducer(ctx, window, store, &wg)
+	fanout := consumer.Fanout{
+		Consumers: []consumer.PushConsumer{&consumer.CountTradeConsumer{}},
+	}
+	producer.StartProducer(ctx, window, &fanout, store, &wg)
 
 	consumer.StartProfitConsumer(ctx, window, &wg)
 	consumer.StartProfitPerAccountConsumer(ctx, store, window, &wg)
