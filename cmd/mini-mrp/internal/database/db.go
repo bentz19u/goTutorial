@@ -140,6 +140,20 @@ func initProcessedTradesTable(ctx context.Context, s *Store) error {
 	return nil
 }
 
+func initSystemStatesTable(ctx context.Context, s *Store) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err := s.Db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS system_states (
+		state_key VARCHAR(255) PRIMARY KEY,
+		value VARCHAR(255) NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func InitTables(ctx context.Context, s *Store) error {
 	err := initMt4Table(ctx, s)
 	if err != nil {
@@ -157,6 +171,11 @@ func InitTables(ctx context.Context, s *Store) error {
 	}
 
 	err = initProcessedTradesTable(ctx, s)
+	if err != nil {
+		return err
+	}
+
+	err = initSystemStatesTable(ctx, s)
 	if err != nil {
 		return err
 	}
@@ -181,6 +200,11 @@ func PurgeTables(ctx context.Context, s *Store) error {
 	}
 
 	err = s.purgeProcessedTrades(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = s.purgeSystemStates(ctx)
 	if err != nil {
 		return err
 	}

@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	volumeToLotMt4 = 100
-	volumeToLotMt5 = 10000
-	priceDecimal   = 100000
-	profitDecimal  = 100
+	volumeToLotMt4    = 100
+	volumeToLotMt5    = 10000
+	priceDecimal      = 100000
+	profitDecimal     = 100
+	heartBeatInterval = 10 * time.Second
 )
 
 func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *database.Store, wg *sync.WaitGroup) {
@@ -38,16 +39,29 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 		tickerReconcile := time.NewTicker(15 * time.Second)
 		defer tickerReconcile.Stop()
 
+		var lastHeartBeat time.Time
+
 		for {
 			select {
 			case <-ticker.C:
-				newWatermarkMt4 := processMt4(ctx, watermarkMt4, store, window)
+				newWatermarkMt4, errMt4 := processMt4(ctx, watermarkMt4, store, window)
+				if errMt4 != nil {
+					slog.Error("failed process mt4", "error", errMt4)
+				}
 				if newWatermarkMt4 != nil {
 					watermarkMt4 = newWatermarkMt4
 				}
-				newWatermarkMt5 := processMt5(ctx, watermarkMt5, store, window)
+
+				newWatermarkMt5, errMt5 := processMt5(ctx, watermarkMt5, store, window)
+				if errMt5 != nil {
+					slog.Error("failed process mt5", "error", errMt5)
+				}
 				if newWatermarkMt5 != nil {
 					watermarkMt5 = newWatermarkMt5
+				}
+
+				if errMt4 == nil && errMt5 == nil {
+					lastHeartBeat = heartbeat(ctx, store, lastHeartBeat)
 				}
 			case <-tickerCleaningWindow.C:
 				count := window.removeExpired(time.Now())
@@ -72,15 +86,14 @@ func StartProducer(ctx context.Context, window *ClosedTradeWindow, store *databa
 	}()
 }
 
-func processMt4(ctx context.Context, watermark *time.Time, store *database.Store, window *ClosedTradeWindow) *time.Time {
+func processMt4(ctx context.Context, watermark *time.Time, store *database.Store, window *ClosedTradeWindow) (*time.Time, error) {
 	trades, err := store.GetMt4TradesFromPeriod(ctx, watermark, nil)
 	if err != nil {
-		slog.Error("failed to get new mt4 trades", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to get new mt4 trades, error: %w", err)
 	}
 
 	if len(trades) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	slog.Debug("new trades found", "trades", trades)
@@ -98,7 +111,7 @@ func processMt4(ctx context.Context, watermark *time.Time, store *database.Store
 	watermark = &last.CloseTime.Time
 
 	slog.Debug("mt4 watermark updated", "watermark", watermark)
-	return watermark
+	return watermark, nil
 }
 
 func normalizeMt4(t database.Mt4Trade) model.ClosedTrade {
@@ -117,15 +130,14 @@ func normalizeMt4(t database.Mt4Trade) model.ClosedTrade {
 	return ct
 }
 
-func processMt5(ctx context.Context, watermark *int, store *database.Store, window *ClosedTradeWindow) *int {
+func processMt5(ctx context.Context, watermark *int, store *database.Store, window *ClosedTradeWindow) (*int, error) {
 	deals, err := store.GetClosedMt5DealsFromDeal(ctx, watermark)
 	if err != nil {
-		slog.Error("failed to get new mt5 deals", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to get new mt5 deals, error: %w", err)
 	}
 
 	if len(deals) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	slog.Debug("new deals found", "deals", deals)
@@ -143,7 +155,7 @@ func processMt5(ctx context.Context, watermark *int, store *database.Store, wind
 	watermark = &last.CloseDeal
 
 	slog.Debug("mt5 watermark updated", "watermark", watermark)
-	return watermark
+	return watermark, nil
 }
 
 func normalizeMt5(d database.ClosedMt5Deal) model.ClosedTrade {
@@ -215,4 +227,18 @@ func verifyWindow(mt4Trades []database.Mt4Trade, mt5Deals []database.ClosedMt5De
 	}
 
 	return missing, extra
+}
+
+func heartbeat(ctx context.Context, store *database.Store, lastHeartBeat time.Time) time.Time {
+	now := time.Now()
+	if now.Sub(lastHeartBeat) > heartBeatInterval {
+		err := store.UpsertSystemState(ctx, database.Heartbeat, now.Format(time.RFC3339))
+		if err != nil {
+			slog.Error("heartbeat failed to update", "error", err)
+			return lastHeartBeat
+		}
+		slog.Info("heartbeat state updated")
+		return now
+	}
+	return lastHeartBeat
 }
