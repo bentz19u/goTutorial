@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
 )
@@ -16,4 +17,8 @@ func (ct *CountTradeConsumer) GetName() string {
 func (ct *CountTradeConsumer) OnEvent(ctx context.Context, trades []model.ClosedTrade) error {
 	slog.Info("Count Trade consumer received new trades", "count", len(trades))
 	return nil
+}
+
+func (ct *CountTradeConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
+
 }
