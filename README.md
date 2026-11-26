@@ -1,23 +1,38 @@
-# GoTutorial
+# Mini MRP
 
-A project to learn Go, with a focus on concurrency and event-driven patterns.
+A small event-driven trade-processing daemon in Go. It is a from-scratch rebuild of the core of a production report processor, written to understand every design decision in it.
 
-## What's inside
+The daemon polls two trade sources with different schemas, converts the trades to one format, keeps the recent ones in memory, and feeds several consumers.
 
-- Practice files at the root: syntax, collections, structs, interfaces, errors, and concurrency (goroutines, channels, mutex, context cancellation).
-- `cmd/mini-processor`: a small event-driven daemon. It takes snapshots of an order source, diffs them, and emits events (order added, removed, price changed). Events are broadcast to consumers (a stats counter and a MySQL mirror), the initial state is replayed as events on startup, and logs are structured JSON via slog. The mirror writes are idempotent upserts, so replayed events are safe. Database calls carry per-query context timeouts.
-- `cmd/mini-mrp`: a work-in-progress rebuild of a production report processor. The goal: poll two trade sources with deliberately different schemas (MT4 and MT5 style), normalize them into one format, keep a rolling in-memory window, and feed consumers. So far: its own MySQL database, both source tables, a generator that opens and closes random trades (an MT4 close updates the row, an MT5 close appends a second deal), a reconcile check comparing table counts to the generator's counters, and a producer that polls each source for newly closed trades with watermark delta queries (close time for MT4, deal id cursor for MT5). Closed trades are normalized into one common struct and kept in a rolling in-memory window keyed by server and ticket, so replayed trades overwrite instead of duplicating, and expired trades are removed on a timer. Two consumers read the window through a read-only interface, and the window is shared between the producer and consumer goroutines behind a mutex. The first is stateless: it logs the total profit of whatever is in the window. The second is stateful: it keeps a running profit total per account in MySQL, and records which trades it has already counted in a second table. Both writes happen in one transaction, so a trade is never marked as counted without its profit being added, and the primary key on the marker table rejects a double count. A third consumer is push-based: after each poll the producer hands the newly closed trades to a fanout, which calls every registered consumer in turn on the producer's own goroutine. A consumer's error is logged and does not stop the other consumers or the producer. Only trades that were not already in the window are pushed, so a replayed trade is not delivered twice during a run; after a restart the window is empty, so delivery is at-least-once. The producer also checks its own work: on a timer it compares the window against the sources over a time band and logs any trade that is missing from the window or present in it without a source row. After a poll cycle where both sources were read successfully, it writes a heartbeat timestamp to a `system_states` table, at most once per interval, as its own statement outside any transaction, so an external watchdog could tell that the daemon is alive and progressing.
-- Tests cover the pure logic: the practice topics, snapshot diffing, the poller, trade normalization, the rolling window, the window-versus-source comparison, the profit sum, and the selection of new trades for the per-account totals. Code that talks to MySQL (database helpers, generator, mirror consumer) has no unit tests; it is checked by running the daemons against the real database, and in mini-mrp by the reconcile check.
-
-## Run the tests
+## How it works
 
 ```
-go test ./...
+MT4 table ─┐                                    ┌─ pull consumers (read the window on a timer)
+           ├─ producer ─ normalize ─ window ────┤
+MT5 table ─┘      │                             └─ push consumers (receive each new batch)
+                  └─ window check, heartbeat
 ```
 
-## Run the daemon
+- **Two sources, two schemas.** An MT4-style table where closing a trade updates its row, and an MT5-style table where closing a position appends a second deal. A generator opens and closes random trades in both, to stand in for real trading servers.
+- **Delta polling with watermarks.** Every second the producer asks each source only for what is new. MT4 uses the close time, which can return the same trade twice at the boundary. MT5 uses the deal id as an exact cursor.
+- **One common format.** Both kinds of trade are normalized into one struct. A trade is identified by server and ticket. Prices and profit are stored as integers with a fixed scale, rounded, never truncated.
+- **Rolling in-memory window.** Closed trades are kept in a map keyed by server and ticket, behind a mutex, and removed on a timer once they are older than the window. A replayed trade overwrites the stored one instead of duplicating it.
+- **Pull consumers.** They read the window through a read-only interface on their own timer. One logs the total profit in the window. The other keeps a profit total per account in MySQL.
+- **Push consumers.** After each poll the producer hands the newly closed trades to a fanout, which calls each registered consumer in turn. A consumer's error is logged and does not stop the others or the producer. Only trades that were not already in the window are pushed.
+- **A slow consumer that does not slow the producer.** One push consumer simulates slow work. It places each batch on a bounded queue and returns at once, and its own goroutine does the work. When the queue is full the batch is dropped and reported, because blocking would stall the producer.
 
-The mirror consumer needs MySQL. Copy `.env.example` to `.env`, pick a password, then start the databases with Docker (one container per daemon: `minimirror` on 3306, `minimrp` on 3307):
+## Design points
+
+- **No double counting.** The per-account consumer writes the profit totals and the list of trades it has counted in one transaction, so either both are saved or neither. The primary key on that list rejects a trade that is already recorded, which rolls back the whole batch.
+- **At-least-once delivery.** A trade can reach a consumer more than once, at the MT4 boundary or after a restart. Consumers that write must therefore be safe to repeat.
+- **The producer checks its own work.** On a timer it compares the window against the sources over a time band and logs any trade that is missing from the window, or present in it without a source row.
+- **Heartbeat.** After a poll cycle where both sources were read successfully, the producer writes a timestamp to a `system_states` table, at most once per interval. It is a separate statement, never part of a data transaction. An external watchdog could use it to tell that the daemon is progressing, not only running.
+- **Timeouts and shutdown.** Every database call has a context timeout. Ctrl-C cancels a shared context and every goroutine stops, tracked by a wait group.
+- **Structured logs.** JSON through `slog`.
+
+## Run it
+
+The daemon needs MySQL. Copy `.env.example` to `.env`, pick a password, and start the database with Docker (container `minimrp`, port 3307):
 
 ```
 docker compose up -d
@@ -27,14 +42,39 @@ Set the same password in your shell and run the daemon:
 
 ```
 $env:DB_PASSWORD="..."
-go run -race ./cmd/mini-processor
+go run -race ./cmd/mini-mrp
 ```
 
-A scripted mutator changes the orders every 300ms; stop with Ctrl-C to see each consumer's final result and check the mirror with `SELECT * FROM orders`.
+Timings: the generator acts every 300ms, the producer polls every second, trades stay in the window for one minute, the pull consumers run every 10 seconds, the window check every 15 seconds, and the heartbeat is written at most every 10 seconds.
 
-The mini-mrp daemon runs the same way: `go run -race ./cmd/mini-mrp`. Its generator opens and closes random trades every 300ms while the producer picks up newly closed ones every second. Trades stay in the window for one minute, and the two window-reading consumers run every 10 seconds. The push consumer logs a count each time new trades arrive, the window check runs every 15 seconds, and the heartbeat is written at most every 10 seconds. Check the per-account totals with `SELECT * FROM account_profits` and the heartbeat with `SELECT * FROM system_states`.
+Things to look at while it runs:
 
-## Why
+```
+SELECT * FROM account_profits;
+SELECT * FROM system_states;
+```
 
-- Learn Go from the ground up, one concept at a time.
-- Build toward a real event-driven processor, like the ones used in trading systems.
+In the log, the slow consumer processes one batch every 3 seconds and reports the batches it drops.
+
+## Tests
+
+```
+go test ./...
+```
+
+The tests cover the pure logic: trade normalization, the rolling window, the window-versus-source comparison, the profit sum, and the selection of new trades for the per-account totals. Code that talks to MySQL has no unit tests. It is checked by running the daemon against the real database, where the generator compares the table counts to its own counters.
+
+## Limits
+
+This is a learning rebuild, not a production system:
+
+- The sources are simulated by the generator, inside the same process and database.
+- All tables are emptied at startup, and the watermarks live in memory, so every run starts from zero.
+- The window check only reports differences. It does not repair them.
+- Batches dropped by the slow consumer are not recovered.
+- The list of counted trades is never cleaned up.
+
+## Also in this repository
+
+- `cmd/mini-processor`: an earlier, smaller daemon. It takes snapshots of an order source, diffs them, and broadcasts the changes as events to consumers over channels, including a MySQL mirror with idempotent upserts. It uses the second container, `minimirror` on port 3306, and runs with `go run -race ./cmd/mini-processor`.
+- `practice`: the first exercises, one file per topic: collections, structs, interfaces, errors, and concurrency. Run them with `go run ./practice`.
