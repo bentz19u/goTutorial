@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bentz19u/gotutorial/cmd/mini-processor/internal/source"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-processor/internal/source"
 )
 
 type Source interface {

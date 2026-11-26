@@ -1,4 +1,4 @@
-# Mini MRP
+# Go Trade Processor
 
 A small event-driven trade-processing daemon in Go. It is a from-scratch rebuild of the core of a production report processor, written to understand every design decision in it.
 

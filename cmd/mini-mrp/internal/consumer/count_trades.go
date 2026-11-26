@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/model"
 )
 
 type CountTradeConsumer struct{}

@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/model"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/database"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/model"
 )
 
 func TestSumProfit(t *testing.T) {

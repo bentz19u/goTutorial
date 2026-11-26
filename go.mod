@@ -1,4 +1,4 @@
-module github.com/bentz19u/gotutorial
+module github.com/bentz19u/go-trade-processor
 
 go 1.27.1
 

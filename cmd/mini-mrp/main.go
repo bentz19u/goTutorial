@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/consumer"
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/database"
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/generator"
-	"github.com/bentz19u/gotutorial/cmd/mini-mrp/internal/producer"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/consumer"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/database"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/generator"
+	"github.com/bentz19u/go-trade-processor/cmd/mini-mrp/internal/producer"
 
 	_ "github.com/go-sql-driver/mysql"
 )
